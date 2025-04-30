@@ -1,0 +1,4 @@
+python-dotenv==1.0.0
+ccxt==4.4.77
+aiohttp==3.9.1
+asyncio==3.4.3
