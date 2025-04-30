@@ -43,3 +43,10 @@ RATE_LIMIT_RETRY = True
 # App settings
 APP_NAME = "Bitmonbot"
 START_MESSAGE = f"✅ {APP_NAME} стартував!"
+
+# Testing mode
+TEST_MODE = os.getenv("TEST_MODE", "False").lower() == "true"
+DEBUG_PRICES = os.getenv("DEBUG_PRICES", "False").lower() == "true"
+
+# Queue monitoring
+QUEUE_STATUS_INTERVAL = int(os.getenv("QUEUE_STATUS_INTERVAL", "300"))  # інтервал в секундах
