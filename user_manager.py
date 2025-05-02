@@ -54,6 +54,16 @@ class UserManager:
             user_type = "admin" if user_id in config.ADMIN_USER_IDS else "free"
             
             if is_new:
+                # Доступні пари для цього типу підписки
+                available_pairs = config.USER_SUBSCRIPTION_TYPES[user_type]["pairs_list"]
+                max_pairs = config.USER_SUBSCRIPTION_TYPES[user_type]["max_pairs"]
+                
+                # Якщо max_pairs = -1, то без обмежень
+                if max_pairs != -1 and max_pairs < len(available_pairs):
+                    selected_pairs = available_pairs[:max_pairs]
+                else:
+                    selected_pairs = available_pairs[:]
+                
                 # Створюємо нового користувача
                 self.users[user_id] = {
                     "username": username,
@@ -63,7 +73,7 @@ class UserManager:
                     "active": True,
                     "created_at": datetime.datetime.now().isoformat(),
                     "last_activity": datetime.datetime.now().isoformat(),
-                    "pairs": config.PAIRS[:config.USER_SUBSCRIPTION_TYPES[user_type]["max_pairs"]],
+                    "pairs": selected_pairs,
                     "min_profit": config.DEFAULT_MIN_PROFIT,
                     "notifications_count": 0
                 }
@@ -126,9 +136,12 @@ class UserManager:
         if user_id not in self.users:
             return False
             
-        # Отримуємо максимальну кількість пар для підписки користувача
+        # Отримуємо тип підписки користувача
         subscription_type = self.users[user_id]["subscription_type"]
+        
+        # Отримуємо максимальну кількість пар та доступні пари для цієї підписки
         max_pairs = config.USER_SUBSCRIPTION_TYPES[subscription_type]["max_pairs"]
+        available_pairs = config.USER_SUBSCRIPTION_TYPES[subscription_type]["pairs_list"]
         
         # Для безлімітних підписок (max_pairs = -1) обмеження немає
         if max_pairs != -1 and len(pairs) > max_pairs:
@@ -138,13 +151,13 @@ class UserManager:
             )
             pairs = pairs[:max_pairs]
             
-        # Перевіряємо, що всі пари підтримуються
-        valid_pairs = [pair for pair in pairs if pair in config.PAIRS]
+        # Перевіряємо, що всі пари підтримуються і доступні для цього рівня підписки
+        valid_pairs = [pair for pair in pairs if pair in available_pairs]
         
         if len(valid_pairs) != len(pairs):
             users_logger.warning(
-                f"Користувач {user_id} спробував додати непідтримувані пари. "
-                f"Додано лише підтримувані: {valid_pairs}"
+                f"Користувач {user_id} спробував додати непідтримувані або недоступні пари. "
+                f"Додано лише підтримувані та доступні: {valid_pairs}"
             )
             
         self.users[user_id]["pairs"] = valid_pairs
