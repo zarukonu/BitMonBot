@@ -7,8 +7,8 @@ load_dotenv()
 
 # App settings
 APP_NAME = "Bitmonbot"
-VERSION = "0.2.1"  # Додано на основі інформації з Changelog
-START_MESSAGE = f"✅ {APP_NAME} стартував!"
+VERSION = "0.2.1"  # На основі інформації з Changelog
+START_MESSAGE = f"✅ {APP_NAME} v{VERSION} стартував!"
 
 # API keys
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
@@ -58,7 +58,7 @@ PAIRS = [
     "XRP/USDT",
     "BNB/USDT",
     "SOL/USDT",
-    # Додаємо пари з аналізу ринку, які були визначені як найбільш перспективні в документації
+    # Додаємо пари з аналізу ринку
     "TRX/USDT",
     "HBAR/USDT",
     "NEAR/USDT",
@@ -72,6 +72,9 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 MAIN_LOG_FILE = "logs/main.log"
 TELEGRAM_LOG_FILE = "logs/telegram.log"
 ARBITRAGE_LOG_FILE = "logs/arbitrage.log"
+TRIANGULAR_LOG_FILE = "logs/triangular.log"  # Додано для трикутного арбітражу
+EXCHANGES_LOG_FILE = "logs/exchanges.log"    # Додано для логування бірж
+DEBUG_LOG_FILE = "logs/debug.log"            # Додано для детального логування
 
 # Exchange API settings
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "10"))  # seconds
@@ -94,3 +97,9 @@ MAX_CONCURRENT_REQUESTS = int(os.getenv("MAX_CONCURRENT_REQUESTS", "3"))  # Max 
 # Status Updates
 SAVE_STATUS_INTERVAL = int(os.getenv("SAVE_STATUS_INTERVAL", "300"))  # seconds (5 min)
 TELEGRAM_STATUS_INTERVAL = int(os.getenv("TELEGRAM_STATUS_INTERVAL", "3600"))  # seconds (1 hour)
+
+# Triangular Arbitrage Settings
+TRIANGULAR_ENABLED = os.getenv("TRIANGULAR_ENABLED", "False").lower() == "true"
+TRIANGULAR_EXCHANGE = os.getenv("TRIANGULAR_EXCHANGE", "binance").lower()
+TRIANGULAR_MIN_PROFIT = float(os.getenv("TRIANGULAR_MIN_PROFIT", "0.3"))  # %
+TRIANGULAR_BASE_CURRENCIES = os.getenv("TRIANGULAR_BASE_CURRENCIES", "USDT,BTC,ETH").split(",")
