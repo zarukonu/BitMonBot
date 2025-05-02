@@ -1,6 +1,6 @@
 # exchange_api/base_exchange.py
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 class BaseExchange(ABC):
     """
@@ -48,6 +48,20 @@ class BaseExchange(ABC):
             
         Returns:
             Dict: Словник з книгою ордерів
+        """
+        pass
+    
+    @abstractmethod
+    async def check_order_book_depth(self, symbol: str, amount: float) -> Dict:
+        """
+        Перевіряє, чи має ордербук достатню глибину для виконання угоди заданого розміру
+        
+        Args:
+            symbol (str): Символ валютної пари
+            amount (float): Сума для виконання
+            
+        Returns:
+            Dict: Інформація про можливе виконання замовлення
         """
         pass
     
