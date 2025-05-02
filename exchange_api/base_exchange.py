@@ -1,6 +1,6 @@
 # exchange_api/base_exchange.py
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple, Optional
 
 class BaseExchange(ABC):
     """
@@ -52,24 +52,18 @@ class BaseExchange(ABC):
         pass
     
     @abstractmethod
-    async def check_order_book_depth(self, symbol: str, amount: float) -> Dict:
+    async def check_order_book_depth(self, symbol: str, amount: float) -> Tuple[bool, Optional[float]]:
         """
-        Перевіряє, чи має ордербук достатню глибину для виконання угоди заданого розміру
+        Перевіряє, чи достатньо глибини ордербуку для виконання угоди заданого розміру
         
         Args:
             symbol (str): Символ валютної пари
-            amount (float): Сума для виконання (додатна для продажу, від'ємна для купівлі)
+            amount (float): Розмір угоди
             
         Returns:
-            Dict: Інформація про можливе виконання замовлення
-                {
-                    "success": bool,             # Чи можливо виконати угоду
-                    "average_price": float,      # Середньозважена ціна виконання (якщо success=True)
-                    "best_price": float,         # Найкраща доступна ціна
-                    "expected_slippage": float,  # Очікуване прослизання у відсотках
-                    "max_amount": float,         # Максимальний доступний обсяг
-                    "error": str                 # Опис помилки (якщо success=False)
-                }
+            Tuple[bool, Optional[float]]:
+                - bool: True, якщо глибина достатня, False інакше
+                - Optional[float]: Середня ціна виконання або None, якщо глибина недостатня
         """
         pass
     
