@@ -31,7 +31,7 @@ class TelegramNotifier(BaseNotifier):
         Ініціалізація HTTP-сесії
         """
         self.session = aiohttp.ClientSession()
-        logger.info("HTTP-сесію ініціалізовано")
+        logger.info("HTTP-сесію для Telegram API ініціалізовано")
         
     async def close(self):
         """
@@ -40,7 +40,7 @@ class TelegramNotifier(BaseNotifier):
         if self.session:
             await self.session.close()
             self.session = None
-            logger.info("HTTP-сесію закрито")
+            logger.info("HTTP-сесію для Telegram API закрито")
             
     async def send_message(self, message: str) -> bool:
         """
@@ -123,7 +123,10 @@ class TelegramNotifier(BaseNotifier):
                 logger.error(f"Помилка при обробці черги Telegram: {e}")
                 
                 # Позначаємо задачу як виконану, навіть якщо сталася помилка
-                self.queue.task_done()
+                try:
+                    self.queue.task_done()
+                except Exception as task_error:
+                    logger.error(f"Помилка при позначенні завдання як виконаного: {task_error}")
                 
                 # Невелика затримка перед наступною спробою
                 await asyncio.sleep(1)
@@ -148,7 +151,7 @@ class TelegramNotifier(BaseNotifier):
         try:
             start_time = time.time()
             
-            async with self.session.post(url, json=params) as response:
+            async with self.session.post(url, json=params, timeout=10) as response:
                 response_time = time.time() - start_time
                 
                 if response.status == 200:
@@ -159,6 +162,9 @@ class TelegramNotifier(BaseNotifier):
                     logger.error(f"Помилка при відправці повідомлення: {response.status} - {response_text}")
                     return False
                     
+        except asyncio.TimeoutError:
+            logger.error("Timeout при відправці повідомлення до Telegram API")
+            return False
         except Exception as e:
             logger.error(f"Виняток при відправці повідомлення: {e}")
             return False

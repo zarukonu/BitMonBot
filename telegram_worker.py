@@ -57,7 +57,7 @@ class TelegramWorker:
             self.monitor_task = None
         
         # Чекаємо завершення відправки всіх повідомлень
-        if self.queue:
+        if self.queue and not self.queue.empty():
             try:
                 # Встановлюємо таймаут на 5 секунд
                 await asyncio.wait_for(self.queue.join(), timeout=5)

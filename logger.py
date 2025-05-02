@@ -1,3 +1,4 @@
+# logger.py
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -46,6 +47,34 @@ arbitrage_logger.addHandler(arbitrage_handler)
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(log_format)
 
-main_logger.addHandler(console_handler)
-telegram_logger.addHandler(console_handler)
-arbitrage_logger.addHandler(console_handler)
+# Перевіряємо, чи логери вже мають обробники
+if not main_logger.handlers:
+    main_logger.addHandler(main_handler)
+    main_logger.addHandler(console_handler)
+else:
+    # Якщо обробники вже існують, переконаємося, що консольний обробник присутній
+    has_console_handler = any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) 
+                            for h in main_logger.handlers)
+    if not has_console_handler:
+        main_logger.addHandler(console_handler)
+
+if not telegram_logger.handlers:
+    telegram_logger.addHandler(telegram_handler)
+    telegram_logger.addHandler(console_handler)
+else:
+    has_console_handler = any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) 
+                            for h in telegram_logger.handlers)
+    if not has_console_handler:
+        telegram_logger.addHandler(console_handler)
+
+if not arbitrage_logger.handlers:
+    arbitrage_logger.addHandler(arbitrage_handler)
+    arbitrage_logger.addHandler(console_handler)
+else:
+    has_console_handler = any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) 
+                            for h in arbitrage_logger.handlers)
+    if not has_console_handler:
+        arbitrage_logger.addHandler(console_handler)
+
+# Створення директорії для логів
+os.makedirs(os.path.dirname(config.MAIN_LOG_FILE), exist_ok=True)

@@ -54,13 +54,27 @@ async def test_telegram_notifications():
             profit_percent = random.uniform(1.0, 5.0)
             sell_price = buy_price * (1 + profit_percent / 100)
             
+            # Отримуємо комісії з конфігурації
+            buy_fee = config.EXCHANGE_FEES[buy_exchange.lower()][config.BUY_FEE_TYPE]
+            sell_fee = config.EXCHANGE_FEES[sell_exchange.lower()][config.SELL_FEE_TYPE]
+            
+            # Розраховуємо чистий прибуток
+            buy_with_fee = buy_price * (1 + buy_fee / 100)
+            sell_with_fee = sell_price * (1 - sell_fee / 100)
+            net_profit_percent = (sell_with_fee - buy_with_fee) / buy_with_fee * 100
+            
             opportunity = ArbitrageOpportunity(
                 symbol=pair,
                 buy_exchange=buy_exchange,
                 sell_exchange=sell_exchange,
                 buy_price=buy_price,
                 sell_price=sell_price,
-                profit_percent=profit_percent
+                profit_percent=profit_percent,
+                buy_fee=buy_fee,
+                sell_fee=sell_fee,
+                net_profit_percent=net_profit_percent,
+                buy_fee_type=config.BUY_FEE_TYPE,
+                sell_fee_type=config.SELL_FEE_TYPE
             )
             
             # Відправляємо форматоване повідомлення про арбітражну можливість

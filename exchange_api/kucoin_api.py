@@ -1,6 +1,6 @@
 # exchange_api/kucoin_api.py
 import ccxt.async_support as ccxt
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
 import logging
 
 from exchange_api.base_exchange import BaseExchange
@@ -63,6 +63,48 @@ class KuCoinAPI(BaseExchange):
         except Exception as e:
             logger.error(f"Помилка при отриманні книги ордерів для {symbol} на KuCoin: {e}")
             return {}
+            
+    async def check_order_book_depth(self, symbol: str, amount: float) -> Tuple[bool, Optional[float]]:
+        """
+        Перевіряє, чи достатньо глибини ордербуку для виконання угоди заданого розміру
+        
+        Args:
+            symbol (str): Символ валютної пари
+            amount (float): Розмір угоди
+            
+        Returns:
+            Tuple[bool, Optional[float]]:
+                - bool: True, якщо глибина достатня, False інакше
+                - Optional[float]: Середня ціна виконання або None, якщо глибина недостатня
+        """
+        try:
+            # Отримуємо книгу ордерів з більшою глибиною
+            orderbook = await self.get_orderbook(symbol, limit=100)
+            
+            if not orderbook or 'bids' not in orderbook or 'asks' not in orderbook:
+                return False, None
+            
+            # Для покупки використовуємо asks, для продажу - bids
+            asks = orderbook['asks']  # Ордери на продаж
+            
+            total_volume = 0.0
+            total_cost = 0.0
+            
+            # Перевіряємо, чи достатньо обсягу для покупки
+            for price, volume in asks:
+                available_volume = min(volume, amount - total_volume)
+                total_volume += available_volume
+                total_cost += available_volume * price
+                
+                if total_volume >= amount:
+                    avg_price = total_cost / total_volume
+                    return True, avg_price
+                    
+            return False, None
+            
+        except Exception as e:
+            logger.error(f"Помилка при перевірці глибини ордербуку для {symbol} на KuCoin: {e}")
+            return False, None
             
     async def close(self):
         """

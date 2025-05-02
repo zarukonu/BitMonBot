@@ -37,12 +37,13 @@ async def check_arbitrage_opportunities():
             ['binance', 'kucoin', 'kraken'],
             min_profit=config.MIN_PROFIT_THRESHOLD,
             include_fees=config.INCLUDE_FEES,
-            fee_type=config.FEE_TYPE
+            buy_fee_type=config.BUY_FEE_TYPE,
+            sell_fee_type=config.SELL_FEE_TYPE
         )
         await arbitrage_finder.initialize()
         
         fee_status = "з урахуванням комісій" if config.INCLUDE_FEES else "без урахування комісій"
-        main_logger.info(f"{config.APP_NAME} успішно запущено ({fee_status}, тип комісії: {config.FEE_TYPE})!")
+        main_logger.info(f"{config.APP_NAME} успішно запущено ({fee_status}, типи комісій: купівля - {config.BUY_FEE_TYPE}, продаж - {config.SELL_FEE_TYPE})!")
         
         # Відправляємо додаткову інформацію про конфігурацію
         if config.INCLUDE_FEES:
@@ -50,11 +51,14 @@ async def check_arbitrage_opportunities():
                 f"<b>ℹ️ Конфігурація {config.APP_NAME}</b>\n\n"
                 f"<b>Мінімальний поріг прибутку:</b> {config.MIN_PROFIT_THRESHOLD}%\n"
                 f"<b>Врахування комісій:</b> Увімкнено\n"
-                f"<b>Тип комісій:</b> {config.FEE_TYPE}\n"
-                f"<b>Комісії бірж ({config.FEE_TYPE}):</b>\n"
-                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.FEE_TYPE]}%\n"
-                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.FEE_TYPE]}%\n"
-                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.FEE_TYPE]}%\n"
+                f"<b>Типи комісій:</b> Купівля - {config.BUY_FEE_TYPE}, Продаж - {config.SELL_FEE_TYPE}\n"
+                f"<b>Комісії бірж:</b>\n"
+                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.BUY_FEE_TYPE]}% (купівля), "
+                f"{config.EXCHANGE_FEES['binance'][config.SELL_FEE_TYPE]}% (продаж)\n"
+                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.BUY_FEE_TYPE]}% (купівля), "
+                f"{config.EXCHANGE_FEES['kucoin'][config.SELL_FEE_TYPE]}% (продаж)\n"
+                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.BUY_FEE_TYPE]}% (купівля), "
+                f"{config.EXCHANGE_FEES['kraken'][config.SELL_FEE_TYPE]}% (продаж)\n"
                 f"<b>Інтервал перевірки:</b> {config.CHECK_INTERVAL} секунд"
             )
             await telegram_worker.send_message(config_message, parse_mode="HTML")
@@ -76,7 +80,8 @@ async def check_arbitrage_opportunities():
                     "opportunities_found": len(opportunities),
                     "running": running,
                     "include_fees": config.INCLUDE_FEES,
-                    "fee_type": config.FEE_TYPE
+                    "buy_fee_type": config.BUY_FEE_TYPE,
+                    "sell_fee_type": config.SELL_FEE_TYPE
                 }
                 
                 with open("status.json", "w") as f:
@@ -124,8 +129,6 @@ async def main():
     """
     Головна функція програми
     """
-    global loop
-    
     # Налаштовуємо обробники сигналів
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, signal_handler)

@@ -77,8 +77,12 @@ class ArbitrageOpportunity:
         else:
             emoji = "🔍"  # Низький прибуток
             
+        # Додаємо емодзі криптовалюти, якщо вони доступні
+        coin_symbol = self.symbol.split('/')[0]
+        coin_emoji = self._get_coin_emoji(coin_symbol)
+        
         message = (
-            f"<b>{emoji} Арбітражна можливість ({self.profit_percent:.2f}%)</b>\n\n"
+            f"<b>{emoji} {coin_emoji} Арбітражна можливість ({self.profit_percent:.2f}%)</b>\n\n"
             f"<b>Пара:</b> {self.symbol}\n"
             f"<b>Купити на:</b> {self.buy_exchange} за {self.buy_price:.8f}\n"
             f"<b>Продати на:</b> {self.sell_exchange} за {self.sell_price:.8f}\n"
@@ -98,3 +102,23 @@ class ArbitrageOpportunity:
         message += f"<b>Час:</b> {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
         
         return message
+        
+    def _get_coin_emoji(self, coin_symbol: str) -> str:
+        """
+        Повертає емодзі для криптовалюти
+        """
+        coin_emojis = {
+            "BTC": "₿",
+            "ETH": "Ξ",
+            "XRP": "✖",
+            "BNB": "🔶",
+            "SOL": "☀️",
+            "TRX": "♦️",
+            "HBAR": "♓",
+            "NEAR": "🔺",
+            "ATOM": "⚛️",
+            "ADA": "🔷",
+            "AVAX": "🔺"
+        }
+        
+        return coin_emojis.get(coin_symbol, "🪙")  # Якщо емодзі не знайдено, повертаємо загальний емодзі монети

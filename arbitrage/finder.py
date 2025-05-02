@@ -1,6 +1,6 @@
 # arbitrage/finder.py
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Tuple, Optional
 import asyncio
 
 from exchange_api.base_exchange import BaseExchange
@@ -49,13 +49,26 @@ class ArbitrageFinder:
             except Exception as e:
                 logger.error(f"Помилка при закритті з'єднання з біржею {name}: {e}")
     
-    async def get_all_tickers(self, symbols: List[str]) -> Dict[str, Dict[str, Dict]]:
+    async def get_all_tickers(self, symbols: List[str] = None) -> Dict[str, Dict[str, Dict]]:
         """
-        Отримання тікерів для всіх бірж
+        Отримання тікерів для всіх бірж з урахуванням підтримуваних пар
         """
         tasks = []
+        
         for name, exchange in self.exchanges.items():
-            tasks.append(self._get_exchange_tickers(name, exchange, symbols))
+            # Визначаємо пари для конкретної біржі
+            exchange_symbols = symbols
+            
+            # Якщо є специфічні пари для цієї біржі, використовуємо їх
+            if hasattr(config, 'EXCHANGE_SPECIFIC_PAIRS') and name.lower() in config.EXCHANGE_SPECIFIC_PAIRS:
+                # Якщо symbols не вказано, використовуємо всі доступні для біржі
+                if symbols is None:
+                    exchange_symbols = config.EXCHANGE_SPECIFIC_PAIRS[name.lower()]
+                else:
+                    # Інакше - перетин вказаних пар і підтримуваних біржею
+                    exchange_symbols = [s for s in symbols if s in config.EXCHANGE_SPECIFIC_PAIRS[name.lower()]]
+                    
+            tasks.append(self._get_exchange_tickers(name, exchange, exchange_symbols))
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
