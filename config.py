@@ -1,14 +1,8 @@
-# config.py
 import os
 from dotenv import load_dotenv
 
 # Завантаження змінних середовища
 load_dotenv()
-
-# App settings
-APP_NAME = "Bitmonbot"
-VERSION = "0.2.1"  # На основі інформації з Changelog
-START_MESSAGE = f"✅ {APP_NAME} v{VERSION} стартував!"
 
 # API keys
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
@@ -48,6 +42,9 @@ EXCHANGE_FEES = {
 BUY_FEE_TYPE = os.getenv("BUY_FEE_TYPE", "taker").lower()  # Тип комісії для купівлі
 SELL_FEE_TYPE = os.getenv("SELL_FEE_TYPE", "taker").lower()  # Тип комісії для продажу
 
+# Для зворотної сумісності - використовується у логах та повідомленнях
+FEE_TYPE = os.getenv("FEE_TYPE", BUY_FEE_TYPE).lower()  # За замовчуванням використовуємо такий же тип, як для купівлі
+
 # Враховувати комісії при розрахунку прибутку
 INCLUDE_FEES = os.getenv("INCLUDE_FEES", "True").lower() == "true"
 
@@ -72,34 +69,11 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 MAIN_LOG_FILE = "logs/main.log"
 TELEGRAM_LOG_FILE = "logs/telegram.log"
 ARBITRAGE_LOG_FILE = "logs/arbitrage.log"
-TRIANGULAR_LOG_FILE = "logs/triangular.log"  # Додано для трикутного арбітражу
-EXCHANGES_LOG_FILE = "logs/exchanges.log"    # Додано для логування бірж
-DEBUG_LOG_FILE = "logs/debug.log"            # Додано для детального логування
 
 # Exchange API settings
-REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "10"))  # seconds
-RATE_LIMIT_RETRY = os.getenv("RATE_LIMIT_RETRY", "True").lower() == "true"
+REQUEST_TIMEOUT = 10  # seconds
+RATE_LIMIT_RETRY = True
 
-# Web server settings
-WEB_SERVER_ENABLED = os.getenv("WEB_SERVER_ENABLED", "False").lower() == "true"
-WEB_SERVER_HOST = os.getenv("WEB_SERVER_HOST", "localhost")
-WEB_SERVER_PORT = int(os.getenv("WEB_SERVER_PORT", "8080"))
-
-# HTTP Session settings
-HTTP_SESSION_TIMEOUT = int(os.getenv("HTTP_SESSION_TIMEOUT", "30"))  # seconds
-HTTP_SESSION_RETRY_COUNT = int(os.getenv("HTTP_SESSION_RETRY_COUNT", "3"))
-HTTP_SESSION_RETRY_DELAY = int(os.getenv("HTTP_SESSION_RETRY_DELAY", "2"))  # seconds
-
-# Performance Settings
-TICKERS_BATCH_SIZE = int(os.getenv("TICKERS_BATCH_SIZE", "5"))  # How many tickers to process in one batch
-MAX_CONCURRENT_REQUESTS = int(os.getenv("MAX_CONCURRENT_REQUESTS", "3"))  # Max concurrent API requests
-
-# Status Updates
-SAVE_STATUS_INTERVAL = int(os.getenv("SAVE_STATUS_INTERVAL", "300"))  # seconds (5 min)
-TELEGRAM_STATUS_INTERVAL = int(os.getenv("TELEGRAM_STATUS_INTERVAL", "3600"))  # seconds (1 hour)
-
-# Triangular Arbitrage Settings
-TRIANGULAR_ENABLED = os.getenv("TRIANGULAR_ENABLED", "False").lower() == "true"
-TRIANGULAR_EXCHANGE = os.getenv("TRIANGULAR_EXCHANGE", "binance").lower()
-TRIANGULAR_MIN_PROFIT = float(os.getenv("TRIANGULAR_MIN_PROFIT", "0.3"))  # %
-TRIANGULAR_BASE_CURRENCIES = os.getenv("TRIANGULAR_BASE_CURRENCIES", "USDT,BTC,ETH").split(",")
+# App settings
+APP_NAME = "Bitmonbot"
+START_MESSAGE = f"✅ {APP_NAME} стартував!"
