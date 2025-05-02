@@ -1,9 +1,9 @@
 # notifier/telegram_notifier.py
 import logging
 import asyncio
+import time
 from typing import Any, Dict, Optional
 import aiohttp
-import time
 
 from notifier.base_notifier import BaseNotifier
 import config
@@ -19,26 +19,28 @@ class TelegramNotifier(BaseNotifier):
         self.chat_id = chat_id
         self.queue = queue
         self.session: Optional[aiohttp.ClientSession] = None
-        self.messages_sent = 0
-        self.messages_failed = 0
-        self.last_rate_limit_time = 0
+        self.last_sent_time = 0  # Час останньої відправки повідомлення
+        self.rate_limit = 0.5  # Мінімальний інтервал між повідомленнями в секундах
+        self.retry_count = 3  # Кількість повторних спроб
+        self.retry_delay = 2  # Затримка між повторними спробами в секундах
+        self.messages_sent = 0  # Лічильник відправлених повідомлень
+        self.messages_failed = 0  # Лічильник невдалих відправок
         
     async def initialize(self):
         """
         Ініціалізація HTTP-сесії
         """
-        if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
-            logger.info("Ініціалізовано HTTP-сесію для Telegram")
+        self.session = aiohttp.ClientSession()
+        logger.info("HTTP-сесію ініціалізовано")
         
     async def close(self):
         """
         Закриття HTTP-сесії
         """
-        if self.session and not self.session.closed:
+        if self.session:
             await self.session.close()
             self.session = None
-            logger.info("Закрито HTTP-сесію Telegram")
+            logger.info("HTTP-сесію закрито")
             
     async def send_message(self, message: str) -> bool:
         """
@@ -63,41 +65,62 @@ class TelegramNotifier(BaseNotifier):
         if not self.session:
             await self.initialize()
             
+        logger.info("Обробник черги Telegram запущено")
+        
         while True:
             try:
                 # Отримуємо повідомлення з черги
                 message_data = await self.queue.get()
                 
-                # Перевіряємо обмеження швидкості (не більше 30 повідомлень на хвилину)
+                # Обмеження швидкості відправки повідомлень
                 current_time = time.time()
-                if current_time - self.last_rate_limit_time < 2:
-                    await asyncio.sleep(2)
+                time_since_last = current_time - self.last_sent_time
                 
-                # Відправляємо повідомлення
+                if time_since_last < self.rate_limit:
+                    delay = self.rate_limit - time_since_last
+                    logger.debug(f"Обмеження швидкості: очікування {delay:.2f} секунд")
+                    await asyncio.sleep(delay)
+                
+                # Відправляємо повідомлення з повторними спробами
                 start_time = time.time()
-                success = await self._send_telegram_message(
-                    message_data["message"], 
-                    message_data.get("parse_mode")
-                )
+                success = False
                 
-                self.last_rate_limit_time = time.time()
+                for attempt in range(self.retry_count):
+                    try:
+                        success = await self._send_telegram_message(
+                            message_data["message"], 
+                            message_data.get("parse_mode")
+                        )
+                        
+                        if success:
+                            self.messages_sent += 1
+                            self.last_sent_time = time.time()
+                            send_time = time.time() - start_time
+                            logger.info(f"Повідомлення успішно відправлено (спроба {attempt+1}, час: {send_time:.2f}с)")
+                            break
+                        else:
+                            logger.warning(f"Не вдалося відправити повідомлення (спроба {attempt+1})")
+                            await asyncio.sleep(self.retry_delay * (attempt + 1))
+                    except Exception as e:
+                        logger.error(f"Помилка при відправці повідомлення (спроба {attempt+1}): {e}")
+                        await asyncio.sleep(self.retry_delay * (attempt + 1))
                 
-                if success:
-                    self.messages_sent += 1
-                    logger.info(f"Повідомлення успішно відправлено (за {(time.time() - start_time):.2f} сек)")
-                else:
+                if not success:
                     self.messages_failed += 1
-                    logger.error(f"Не вдалося відправити повідомлення (за {(time.time() - start_time):.2f} сек)")
+                    logger.error(f"Всі спроби відправити повідомлення вичерпано. Повідомлення не відправлено.")
                     
                 # Позначаємо задачу як виконану
                 self.queue.task_done()
+                
+                # Логуємо статистику
+                if (self.messages_sent + self.messages_failed) % 10 == 0:
+                    logger.info(f"Статистика відправки: успішно - {self.messages_sent}, невдало - {self.messages_failed}")
                 
             except asyncio.CancelledError:
                 logger.info("Обробник черги Telegram зупинено")
                 break
             except Exception as e:
                 logger.error(f"Помилка при обробці черги Telegram: {e}")
-                self.messages_failed += 1
                 
                 # Позначаємо задачу як виконану, навіть якщо сталася помилка
                 self.queue.task_done()
@@ -109,7 +132,7 @@ class TelegramNotifier(BaseNotifier):
         """
         Безпосередньо відправляє повідомлення в Telegram
         """
-        if not self.session or self.session.closed:
+        if not self.session:
             await self.initialize()
             
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
@@ -123,31 +146,18 @@ class TelegramNotifier(BaseNotifier):
             params["parse_mode"] = parse_mode
             
         try:
-            max_retries = 3
-            retry_count = 0
+            start_time = time.time()
             
-            while retry_count < max_retries:
-                try:
-                    async with self.session.post(url, json=params, timeout=10) as response:
-                        if response.status == 200:
-                            return True
-                        # Якщо отримали помилку 429 (Too Many Requests), чекаємо і пробуємо знову
-                        elif response.status == 429:
-                            retry_count += 1
-                            wait_time = 5 * retry_count
-                            logger.warning(f"Перевищено ліміт запитів до Telegram API. Чекаємо {wait_time} секунд...")
-                            await asyncio.sleep(wait_time)
-                        else:
-                            response_text = await response.text()
-                            logger.error(f"Помилка при відправці повідомлення: {response.status} - {response_text}")
-                            return False
-                except asyncio.TimeoutError:
-                    retry_count += 1
-                    logger.warning(f"Таймаут при відправці повідомлення. Спроба {retry_count}/{max_retries}")
-                    await asyncio.sleep(2)
-                    
-            # Якщо дійшли сюди, значить всі спроби невдалі
-            return False
+            async with self.session.post(url, json=params) as response:
+                response_time = time.time() - start_time
+                
+                if response.status == 200:
+                    logger.debug(f"Telegram API відповів за {response_time:.3f} секунд")
+                    return True
+                else:
+                    response_text = await response.text()
+                    logger.error(f"Помилка при відправці повідомлення: {response.status} - {response_text}")
+                    return False
                     
         except Exception as e:
             logger.error(f"Виняток при відправці повідомлення: {e}")
