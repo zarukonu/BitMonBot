@@ -63,36 +63,72 @@ async def check_arbitrage_opportunities():
                 f"   • Binance: {config.EXCHANGE_FEES['binance'][config.SELL_FEE_TYPE]}%\n"
                 f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.SELL_FEE_TYPE]}%\n"
                 f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.SELL_FEE_TYPE]}%\n"
-                f"<b>Інтервал перевірки:</b> {config.CHECK_INTERVAL} секунд"
+                f"<b>Інтервал перевірки:</b> {config.CHECK_INTERVAL} секунд\n"
+                f"<b>Кількість валютних пар:</b> {len(config.PAIRS)}"
             )
             await telegram_worker.send_message(config_message, parse_mode="HTML")
         
+        # Час останнього збереження статусу
+        last_status_save = datetime.now()
+        last_telegram_status = datetime.now()
+        
         # Основний цикл роботи
         while running:
+            start_time = datetime.now()
+            
             try:
                 # Шукаємо арбітражні можливості
                 opportunities = await arbitrage_finder.find_opportunities()
+                
+                # Вимірюємо час виконання
+                execution_time = (datetime.now() - start_time).total_seconds()
                 
                 # Якщо є можливості, відправляємо повідомлення
                 for opp in opportunities:
                     message = opp.to_message()
                     await telegram_worker.send_message(message, parse_mode="HTML")
                 
-                # Зберігаємо статус у JSON-файл
-                status = {
-                    "last_check": datetime.now().isoformat(),
-                    "opportunities_found": len(opportunities),
-                    "running": running,
-                    "include_fees": config.INCLUDE_FEES,
-                    "buy_fee_type": config.BUY_FEE_TYPE,
-                    "sell_fee_type": config.SELL_FEE_TYPE
-                }
+                main_logger.info(f"Знайдено {len(opportunities)} арбітражних можливостей за {execution_time:.2f} секунд")
                 
-                # Переконаємося, що директорія status існує
-                os.makedirs("status", exist_ok=True)
+                # Зберігаємо статус у JSON-файл з періодичністю
+                current_time = datetime.now()
+                if (current_time - last_status_save).total_seconds() >= config.SAVE_STATUS_INTERVAL:
+                    status = {
+                        "last_check": current_time.isoformat(),
+                        "opportunities_found": len(opportunities),
+                        "execution_time": execution_time,
+                        "running": running,
+                        "include_fees": config.INCLUDE_FEES,
+                        "buy_fee_type": config.BUY_FEE_TYPE,
+                        "sell_fee_type": config.SELL_FEE_TYPE,
+                        "pairs_count": len(config.PAIRS),
+                        "profit_threshold": config.MIN_PROFIT_THRESHOLD
+                    }
+                    
+                    # Переконуємося, що директорія status існує
+                    os.makedirs("status", exist_ok=True)
+                    
+                    with open("status/current.json", "w") as f:
+                        json.dump(status, f, indent=4)
+                    
+                    # Оновлюємо час останнього збереження
+                    last_status_save = current_time
                 
-                with open("status/current.json", "w") as f:
-                    json.dump(status, f, indent=4)
+                # Періодично надсилаємо статус в Telegram
+                if (current_time - last_telegram_status).total_seconds() >= config.TELEGRAM_STATUS_INTERVAL:
+                    status_message = (
+                        f"<b>📊 Статус {config.APP_NAME}</b>\n\n"
+                        f"<b>Останнє оновлення:</b> {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        f"<b>Знайдено можливостей:</b> {len(opportunities)}\n"
+                        f"<b>Час виконання:</b> {execution_time:.2f} секунд\n"
+                        f"<b>Поріг прибутку:</b> {config.MIN_PROFIT_THRESHOLD}%\n"
+                        f"<b>Валютних пар:</b> {len(config.PAIRS)}\n"
+                        f"<b>Статус:</b> {'🟢 Активний' if running else '🔴 Зупинений'}"
+                    )
+                    await telegram_worker.send_message(status_message, parse_mode="HTML")
+                    
+                    # Оновлюємо час останнього надсилання статусу
+                    last_telegram_status = current_time
                 
                 # Чекаємо до наступної перевірки
                 await asyncio.sleep(config.CHECK_INTERVAL)
