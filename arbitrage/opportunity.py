@@ -32,13 +32,25 @@ class ArbitrageOpportunity:
     
     def to_message(self) -> str:
         """
-        Форматує арбітражну можливість для відправки в Telegram
+        Форматує арбітражну можливість для відправки в Telegram з емодзі
         """
+        # Визначаємо емодзі для заголовка залежно від % прибутку
+        if self.profit_percent >= 5.0:
+            header_emoji = "🔥💰🔥"  # Дуже прибуткова можливість
+        elif self.profit_percent >= 2.0:
+            header_emoji = "💰💰"    # Хороша можливість
+        else:
+            header_emoji = "💰"      # Звичайна можливість
+            
+        # Форматуємо повідомлення
         return (
-            f"<b>🔍 Арбітражна можливість ({self.profit_percent:.2f}%)</b>\n\n"
-            f"<b>Пара:</b> {self.symbol}\n"
-            f"<b>Купити на:</b> {self.buy_exchange} за {self.buy_price:.8f}\n"
-            f"<b>Продати на:</b> {self.sell_exchange} за {self.sell_price:.8f}\n"
-            f"<b>Прибуток:</b> {self.profit_percent:.2f}%\n"
-            f"<b>Час:</b> {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+            f"<b>{header_emoji} АРБІТРАЖНА МОЖЛИВІСТЬ {header_emoji}</b>\n\n"
+            f"<b>📊 Прибуток:</b> <code>+{self.profit_percent:.2f}%</code>\n"
+            f"<b>🪙 Пара:</b> <code>{self.symbol}</code>\n\n"
+            f"<b>🔄 Операція:</b>\n"
+            f"<b>📈 Купити на:</b> <code>{self.buy_exchange}</code>\n"
+            f"<b>💲 Ціна купівлі:</b> <code>{self.buy_price:.8f}</code>\n\n"
+            f"<b>📉 Продати на:</b> <code>{self.sell_exchange}</code>\n"
+            f"<b>💲 Ціна продажу:</b> <code>{self.sell_price:.8f}</code>\n\n"
+            f"<b>⏱️ Час:</b> <code>{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}</code>"
         )
