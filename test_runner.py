@@ -3,6 +3,7 @@ import asyncio
 import logging
 import sys
 import random
+import os
 from datetime import datetime
 
 import config
@@ -38,7 +39,7 @@ async def test_telegram_notifications():
         )
         
         # Створюємо тестові арбітражні можливості
-        pairs = ["BTC/USDT", "ETH/USDT", "XRP/USDT"]
+        pairs = config.PAIRS  # Використовуємо пари з конфігурації
         exchanges = ["Binance", "KuCoin", "Kraken"]
         
         for _ in range(3):
@@ -54,13 +55,27 @@ async def test_telegram_notifications():
             profit_percent = random.uniform(1.0, 5.0)
             sell_price = buy_price * (1 + profit_percent / 100)
             
+            # Додаємо комісії для тестування
+            buy_fee = config.EXCHANGE_FEES[buy_exchange.lower()][config.BUY_FEE_TYPE]
+            sell_fee = config.EXCHANGE_FEES[sell_exchange.lower()][config.SELL_FEE_TYPE]
+            
+            # Розраховуємо чистий прибуток
+            buy_with_fee = buy_price * (1 + buy_fee / 100)
+            sell_with_fee = sell_price * (1 - sell_fee / 100)
+            net_profit_percent = (sell_with_fee - buy_with_fee) / buy_with_fee * 100
+            
             opportunity = ArbitrageOpportunity(
                 symbol=pair,
                 buy_exchange=buy_exchange,
                 sell_exchange=sell_exchange,
                 buy_price=buy_price,
                 sell_price=sell_price,
-                profit_percent=profit_percent
+                profit_percent=profit_percent,
+                buy_fee=buy_fee,
+                sell_fee=sell_fee,
+                net_profit_percent=net_profit_percent,
+                buy_fee_type=config.BUY_FEE_TYPE,
+                sell_fee_type=config.SELL_FEE_TYPE
             )
             
             # Відправляємо форматоване повідомлення про арбітражну можливість
@@ -91,8 +106,19 @@ async def test_telegram_notifications():
 
 if __name__ == "__main__":
     try:
+        # Створюємо директорії для логів
+        os.makedirs(os.path.dirname(config.MAIN_LOG_FILE), exist_ok=True)
+        
+        # Зберігаємо час початку тесту
+        start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        test_logger.info(f"Початок тестування {config.APP_NAME} о {start_time}")
+        
         loop = asyncio.get_event_loop()
         loop.run_until_complete(test_telegram_notifications())
+        
+        # Зберігаємо час завершення тесту
+        end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        test_logger.info(f"Завершення тестування {config.APP_NAME} о {end_time}")
     except KeyboardInterrupt:
         test_logger.info("Тест зупинено користувачем")
     except Exception as e:
