@@ -33,10 +33,31 @@ async def check_arbitrage_opportunities():
         await telegram_worker.start()
         
         # Ініціалізуємо пошуковик арбітражних можливостей
-        arbitrage_finder = ArbitrageFinder(['binance', 'kucoin', 'kraken'])
+        arbitrage_finder = ArbitrageFinder(
+            ['binance', 'kucoin', 'kraken'],
+            min_profit=config.MIN_PROFIT_THRESHOLD,
+            include_fees=config.INCLUDE_FEES,
+            fee_type=config.FEE_TYPE
+        )
         await arbitrage_finder.initialize()
         
-        main_logger.info(f"{config.APP_NAME} успішно запущено!")
+        fee_status = "з урахуванням комісій" if config.INCLUDE_FEES else "без урахування комісій"
+        main_logger.info(f"{config.APP_NAME} успішно запущено ({fee_status}, тип комісії: {config.FEE_TYPE})!")
+        
+        # Відправляємо додаткову інформацію про конфігурацію
+        if config.INCLUDE_FEES:
+            config_message = (
+                f"<b>ℹ️ Конфігурація {config.APP_NAME}</b>\n\n"
+                f"<b>Мінімальний поріг прибутку:</b> {config.MIN_PROFIT_THRESHOLD}%\n"
+                f"<b>Врахування комісій:</b> Увімкнено\n"
+                f"<b>Тип комісій:</b> {config.FEE_TYPE}\n"
+                f"<b>Комісії бірж ({config.FEE_TYPE}):</b>\n"
+                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.FEE_TYPE]}%\n"
+                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.FEE_TYPE]}%\n"
+                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.FEE_TYPE]}%\n"
+                f"<b>Інтервал перевірки:</b> {config.CHECK_INTERVAL} секунд"
+            )
+            await telegram_worker.send_message(config_message, parse_mode="HTML")
         
         # Основний цикл роботи
         while running:
@@ -53,7 +74,9 @@ async def check_arbitrage_opportunities():
                 status = {
                     "last_check": datetime.now().isoformat(),
                     "opportunities_found": len(opportunities),
-                    "running": running
+                    "running": running,
+                    "include_fees": config.INCLUDE_FEES,
+                    "fee_type": config.FEE_TYPE
                 }
                 
                 with open("status.json", "w") as f:

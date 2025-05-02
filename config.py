@@ -21,6 +21,30 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 MIN_PROFIT_THRESHOLD = float(os.getenv("MIN_PROFIT_THRESHOLD", "0.5"))  # мінімальний % прибутку
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))  # інтервал перевірки в секундах
 
+# Комісії бірж відповідно до реальних тарифів
+EXCHANGE_FEES = {
+    'binance': {
+        'maker': float(os.getenv("BINANCE_MAKER_FEE", "0.1")),  # 0.1%
+        'taker': float(os.getenv("BINANCE_TAKER_FEE", "0.1"))   # 0.1%
+    },
+    'kucoin': {
+        'maker': float(os.getenv("KUCOIN_MAKER_FEE", "0.1")),   # 0.1%
+        'taker': float(os.getenv("KUCOIN_TAKER_FEE", "0.1"))    # 0.1%
+    },
+    'kraken': {
+        'maker': float(os.getenv("KRAKEN_MAKER_FEE", "0.25")),  # 0.25%
+        'taker': float(os.getenv("KRAKEN_TAKER_FEE", "0.40"))   # 0.40%
+    }
+}
+
+# Використовувати maker чи taker комісії для розрахунків
+# Окремо для купівлі і продажу
+BUY_FEE_TYPE = os.getenv("BUY_FEE_TYPE", "taker").lower()  # Тип комісії для купівлі
+SELL_FEE_TYPE = os.getenv("SELL_FEE_TYPE", "taker").lower()  # Тип комісії для продажу
+
+# Враховувати комісії при розрахунку прибутку
+INCLUDE_FEES = os.getenv("INCLUDE_FEES", "True").lower() == "true"
+
 # Supported cryptocurrency pairs
 PAIRS = [
     "BTC/USDT", 
