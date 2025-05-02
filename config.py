@@ -143,3 +143,6 @@ WEB_SERVER_HOST = os.getenv("WEB_SERVER_HOST", "localhost")
 APP_NAME = "Bitmonbot"
 START_MESSAGE = f"✅ {APP_NAME} стартував!"
 VERSION = "0.3.0"
+
+# Налаштування прослизання
+MAX_ACCEPTABLE_SLIPPAGE = float(os.getenv("MAX_ACCEPTABLE_SLIPPAGE", "1.0"))  # максимальне прийнятне прослизання у відсотках
