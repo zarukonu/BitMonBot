@@ -45,23 +45,21 @@ async def check_arbitrage_opportunities():
         fee_status = "з урахуванням комісій" if config.INCLUDE_FEES else "без урахування комісій"
         main_logger.info(f"{config.APP_NAME} успішно запущено ({fee_status}, типи комісій: купівля - {config.BUY_FEE_TYPE}, продаж - {config.SELL_FEE_TYPE})!")
         
-        # Відправляємо додаткову інформацію про конфігурацію
-        if config.INCLUDE_FEES:
-            config_message = (
-                f"<b>ℹ️ Конфігурація {config.APP_NAME}</b>\n\n"
-                f"<b>Мінімальний поріг прибутку:</b> {config.MIN_PROFIT_THRESHOLD}%\n"
-                f"<b>Врахування комісій:</b> Увімкнено\n"
-                f"<b>Типи комісій:</b> Купівля - {config.BUY_FEE_TYPE}, Продаж - {config.SELL_FEE_TYPE}\n"
-                f"<b>Комісії бірж:</b>\n"
-                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.BUY_FEE_TYPE]}% (купівля), "
-                f"{config.EXCHANGE_FEES['binance'][config.SELL_FEE_TYPE]}% (продаж)\n"
-                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.BUY_FEE_TYPE]}% (купівля), "
-                f"{config.EXCHANGE_FEES['kucoin'][config.SELL_FEE_TYPE]}% (продаж)\n"
-                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.BUY_FEE_TYPE]}% (купівля), "
-                f"{config.EXCHANGE_FEES['kraken'][config.SELL_FEE_TYPE]}% (продаж)\n"
-                f"<b>Інтервал перевірки:</b> {config.CHECK_INTERVAL} секунд"
-            )
-            await telegram_worker.send_message(config_message, parse_mode="HTML")
+        # Відправляємо повідомлення про запуск всім адміністраторам
+        admin_message = (
+            f"<b>✅ {config.APP_NAME} запущено!</b>\n\n"
+            f"<b>Конфігурація:</b>\n"
+            f"• Врахування комісій: {'Увімкнено' if config.INCLUDE_FEES else 'Вимкнено'}\n"
+            f"• Тип комісій для купівлі: {config.BUY_FEE_TYPE}\n"
+            f"• Тип комісій для продажу: {config.SELL_FEE_TYPE}\n"
+            f"• Мінімальний поріг прибутку: {config.MIN_PROFIT_THRESHOLD}%\n"
+            f"• Біржі: Binance, KuCoin, Kraken\n"
+            f"• Валютні пари: {', '.join(config.PAIRS)}\n"
+            f"• Інтервал перевірки: {config.CHECK_INTERVAL} секунд"
+        )
+        
+        # Відправляємо повідомлення тільки адміністраторам
+        await telegram_worker.broadcast_message(admin_message, parse_mode="HTML", only_admins=True)
         
         # Основний цикл роботи
         while running:
@@ -69,23 +67,26 @@ async def check_arbitrage_opportunities():
                 # Шукаємо арбітражні можливості
                 opportunities = await arbitrage_finder.find_opportunities()
                 
-                # Якщо є можливості, відправляємо повідомлення
+                # Якщо є можливості, відправляємо повідомлення всім активним користувачам
                 for opp in opportunities:
                     message = opp.to_message()
-                    await telegram_worker.send_message(message, parse_mode="HTML")
+                    
+                    # Надсилаємо повідомлення користувачам за підпискою
+                    await telegram_worker.notify_about_opportunity(message)
                 
-                # Зберігаємо статус у JSON-файл (опціонально)
+                # Зберігаємо статус у JSON-файл
                 status = {
                     "last_check": datetime.now().isoformat(),
                     "opportunities_found": len(opportunities),
                     "running": running,
                     "include_fees": config.INCLUDE_FEES,
                     "buy_fee_type": config.BUY_FEE_TYPE,
-                    "sell_fee_type": config.SELL_FEE_TYPE
+                    "sell_fee_type": config.SELL_FEE_TYPE,
+                    "active_users": len(telegram_worker.user_manager.get_active_users())
                 }
                 
                 with open("status.json", "w") as f:
-                    json.dump(status, f)
+                    json.dump(status, f, indent=4)
                 
                 # Чекаємо до наступної перевірки
                 await asyncio.sleep(config.CHECK_INTERVAL)
@@ -113,6 +114,16 @@ async def cleanup():
         await arbitrage_finder.close_exchanges()
         
     if telegram_worker:
+        # Повідомляємо адміністраторів про зупинку
+        try:
+            await telegram_worker.broadcast_message(
+                f"<b>🛑 {config.APP_NAME} зупинено!</b>",
+                parse_mode="HTML",
+                only_admins=True
+            )
+        except Exception as e:
+            main_logger.error(f"Помилка при відправці повідомлення про зупинку: {e}")
+            
         await telegram_worker.stop()
         
     main_logger.info(f"{config.APP_NAME} успішно зупинено")
@@ -143,6 +154,9 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        # Створюємо директорію для логів, якщо вона не існує
+        os.makedirs(os.path.dirname(config.MAIN_LOG_FILE), exist_ok=True)
+        
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main())
     except KeyboardInterrupt:
