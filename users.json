@@ -1,0 +1,14 @@
+{
+    "example_admin_id": {
+        "username": "admin",
+        "first_name": "Admin",
+        "last_name": "User",
+        "subscription_type": "admin",
+        "active": true,
+        "created_at": "2025-05-02T10:00:00",
+        "last_activity": "2025-05-02T10:00:00",
+        "pairs": ["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT", "BNB/USDT"],
+        "min_profit": 0.5,
+        "notifications_count": 0
+    }
+}
