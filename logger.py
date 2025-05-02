@@ -7,8 +7,8 @@ import config
 # Створюємо директорію для логів, якщо вона не існує
 os.makedirs(os.path.dirname(config.MAIN_LOG_FILE), exist_ok=True)
 
-# Загальний формат логування з назвою програми та версією
-log_format = logging.Formatter(f'%(asctime)s - {config.APP_NAME} v{config.VERSION} - %(name)s - %(levelname)s - %(message)s')
+# Загальний формат логування з назвою програми
+log_format = logging.Formatter(f'%(asctime)s - {config.APP_NAME} - %(name)s - %(levelname)s - %(message)s')
 
 # Налаштування основного логера
 main_logger = logging.getLogger('main')
@@ -43,51 +43,38 @@ arbitrage_handler = RotatingFileHandler(
 arbitrage_handler.setFormatter(log_format)
 arbitrage_logger.addHandler(arbitrage_handler)
 
-# Налаштування логера для трикутного арбітражу
-triangular_logger = logging.getLogger('triangular')
-triangular_logger.setLevel(getattr(logging, config.LOG_LEVEL))
-triangular_handler = RotatingFileHandler(
-    config.TRIANGULAR_LOG_FILE, 
-    maxBytes=10*1024*1024,  # 10MB
-    backupCount=5
-)
-triangular_handler.setFormatter(log_format)
-triangular_logger.addHandler(triangular_handler)
-
-# Налаштування логера для бірж
-exchanges_logger = logging.getLogger('exchanges')
-exchanges_logger.setLevel(getattr(logging, config.LOG_LEVEL))
-exchanges_handler = RotatingFileHandler(
-    config.EXCHANGES_LOG_FILE, 
-    maxBytes=10*1024*1024,  # 10MB
-    backupCount=5
-)
-exchanges_handler.setFormatter(log_format)
-exchanges_logger.addHandler(exchanges_handler)
-
-# Налаштування детального логера
-debug_logger = logging.getLogger('debug')
-debug_logger.setLevel(logging.DEBUG)  # Завжди зберігаємо максимальний рівень деталізації
-debug_handler = RotatingFileHandler(
-    config.DEBUG_LOG_FILE, 
-    maxBytes=20*1024*1024,  # 20MB для більшого обсягу даних
-    backupCount=5
-)
-debug_handler.setFormatter(log_format)
-debug_logger.addHandler(debug_handler)
-
 # Додамо також вивід в консоль для всіх логерів
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(log_format)
-console_handler.setLevel(getattr(logging, config.LOG_LEVEL))
 
-main_logger.addHandler(console_handler)
-telegram_logger.addHandler(console_handler)
-arbitrage_logger.addHandler(console_handler)
-triangular_logger.addHandler(console_handler)
-exchanges_logger.addHandler(console_handler)
-# Не додаємо debug_logger до консолі, щоб не перевантажувати її
+# Перевіряємо, чи логери вже мають обробники
+if not main_logger.handlers:
+    main_logger.addHandler(main_handler)
+    main_logger.addHandler(console_handler)
+else:
+    # Якщо обробники вже існують, переконаємося, що консольний обробник присутній
+    has_console_handler = any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) 
+                            for h in main_logger.handlers)
+    if not has_console_handler:
+        main_logger.addHandler(console_handler)
 
-# Глобальна функція для отримання логера
-def get_logger(name):
-    return logging.getLogger(name)
+if not telegram_logger.handlers:
+    telegram_logger.addHandler(telegram_handler)
+    telegram_logger.addHandler(console_handler)
+else:
+    has_console_handler = any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) 
+                            for h in telegram_logger.handlers)
+    if not has_console_handler:
+        telegram_logger.addHandler(console_handler)
+
+if not arbitrage_logger.handlers:
+    arbitrage_logger.addHandler(arbitrage_handler)
+    arbitrage_logger.addHandler(console_handler)
+else:
+    has_console_handler = any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) 
+                            for h in arbitrage_logger.handlers)
+    if not has_console_handler:
+        arbitrage_logger.addHandler(console_handler)
+
+# Створення директорії для логів
+os.makedirs(os.path.dirname(config.MAIN_LOG_FILE), exist_ok=True)
