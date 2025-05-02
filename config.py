@@ -49,6 +49,22 @@ FEE_TYPE = os.getenv("FEE_TYPE", BUY_FEE_TYPE).lower()  # За замовчув�
 INCLUDE_FEES = os.getenv("INCLUDE_FEES", "True").lower() == "true"
 
 # Supported cryptocurrency pairs
+PAIRS = [
+    "BTC/USDT", 
+    "ETH/USDT", 
+    "XRP/USDT",
+    "BNB/USDT",
+    "SOL/USDT",
+    # Додаємо пари з аналізу ринку
+    "TRX/USDT",
+    "HBAR/USDT",
+    "NEAR/USDT",
+    "ATOM/USDT",
+    "ADA/USDT",
+    "AVAX/USDT"
+]
+
+# Налаштування пар для кожної біржі
 EXCHANGE_SPECIFIC_PAIRS = {
     'binance': [
         "BTC/USDT", 
