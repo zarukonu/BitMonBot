@@ -4,6 +4,8 @@ import logging
 from typing import Dict, List, Optional, Any
 import json
 import traceback
+import os
+from datetime import datetime
 
 import config
 from notifier.telegram_notifier import TelegramNotifier
@@ -203,17 +205,41 @@ class TelegramWorker:
         """
         Обробляє команду /start
         """
-        global running
-        running = True
+        # Замість глобальної змінної, повідомимо про запуск
         await self.send_message("🚀 Бот запущено і активно шукає арбітражні можливості!", parse_mode="HTML")
+        
+        # Оновлюємо статус у файлі
+        if os.path.exists("status.json"):
+            try:
+                with open("status.json", "r") as f:
+                    status = json.load(f)
+                
+                status["running"] = True
+                
+                with open("status.json", "w") as f:
+                    json.dump(status, f, indent=2)
+            except Exception as e:
+                logger.error(f"Помилка при оновленні статусу бота: {e}")
     
     async def handle_stop_command(self):
         """
         Обробляє команду /stop
         """
-        global running
-        running = False
+        # Замість глобальної змінної, повідомимо про зупинку
         await self.send_message("🛑 Бот зупинено. Для відновлення роботи використайте команду /start", parse_mode="HTML")
+        
+        # Оновлюємо статус у файлі
+        if os.path.exists("status.json"):
+            try:
+                with open("status.json", "r") as f:
+                    status = json.load(f)
+                
+                status["running"] = False
+                
+                with open("status.json", "w") as f:
+                    json.dump(status, f, indent=2)
+            except Exception as e:
+                logger.error(f"Помилка при оновленні статусу бота: {e}")
     
     async def handle_status_command(self):
         """
