@@ -49,20 +49,44 @@ FEE_TYPE = os.getenv("FEE_TYPE", BUY_FEE_TYPE).lower()  # За замовчув�
 INCLUDE_FEES = os.getenv("INCLUDE_FEES", "True").lower() == "true"
 
 # Supported cryptocurrency pairs
-PAIRS = [
-    "BTC/USDT", 
-    "ETH/USDT", 
-    "XRP/USDT",
-    "BNB/USDT",
-    "SOL/USDT",
-    # Додаємо пари з аналізу ринку
-    "TRX/USDT",
-    "HBAR/USDT",
-    "NEAR/USDT",
-    "ATOM/USDT",
-    "ADA/USDT",
-    "AVAX/USDT"
-]
+EXCHANGE_SPECIFIC_PAIRS = {
+    'binance': [
+        "BTC/USDT", 
+        "ETH/USDT", 
+        "XRP/USDT",
+        "BNB/USDT",
+        "SOL/USDT",
+        "TRX/USDT",
+        "HBAR/USDT",
+        "NEAR/USDT",
+        "ATOM/USDT",
+        "ADA/USDT",
+        "AVAX/USDT"
+    ],
+    'kucoin': [
+        "BTC/USDT", 
+        "ETH/USDT", 
+        "XRP/USDT",
+        "BNB/USDT",
+        "SOL/USDT",
+        "TRX/USDT",
+        "HBAR/USDT",
+        "NEAR/USDT",
+        "ATOM/USDT",
+        "ADA/USDT",
+        "AVAX/USDT"
+    ],
+    'kraken': [
+        "BTC/USDT", 
+        "ETH/USDT", 
+        "XRP/USDT",
+        "SOL/USDT",
+        "ATOM/USDT",
+        "ADA/USDT",
+        "AVAX/USDT"
+        # Kraken не підтримує TRX/USDT, HBAR/USDT, NEAR/USDT, BNB/USDT
+    ]
+}
 
 # Logging settings
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
