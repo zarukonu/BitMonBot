@@ -14,9 +14,15 @@ class ArbitrageFinder:
     """
     Клас для пошуку арбітражних можливостей між біржами
     """
-    def __init__(self, exchange_names: List[str], min_profit: float = config.MIN_PROFIT_THRESHOLD):
+    def __init__(self, 
+                 exchange_names: List[str], 
+                 min_profit: float = config.MIN_PROFIT_THRESHOLD, 
+                 include_fees: bool = config.INCLUDE_FEES,
+                 fee_type: str = config.FEE_TYPE):
         self.exchange_names = exchange_names
         self.min_profit = min_profit
+        self.include_fees = include_fees
+        self.fee_type = fee_type.lower()  # 'maker' або 'taker'
         self.exchanges: Dict[str, BaseExchange] = {}
         
     async def initialize(self):
@@ -116,19 +122,23 @@ class ArbitrageFinder:
                             
                             # Обчислюємо потенційний прибуток
                             if buy_price > 0:  # Уникаємо ділення на нуль
+                                # Розрахунок "сирого" прибутку без комісій
                                 profit_percent = (sell_price - buy_price) / buy_price * 100
                                 
-                                # Якщо прибуток перевищує мінімальний поріг
-                                if profit_percent >= self.min_profit:
-                                    opportunity = ArbitrageOpportunity(
-                                        symbol=symbol,
-                                        buy_exchange=buy_exchange,
-                                        sell_exchange=sell_exchange,
-                                        buy_price=buy_price,
-                                        sell_price=sell_price,
-                                        profit_percent=profit_percent
-                                    )
-                                    opportunities.append(opportunity)
-                                    logger.info(f"Знайдено арбітражну можливість: {opportunity.to_dict()}")
-        
-        return opportunities
+                                # Отримуємо комісії для бірж
+                                buy_fee = 0.0
+                                sell_fee = 0.0
+                                
+                                if self.include_fees:
+                                    # Отримуємо комісії відповідно до типу (maker або taker)
+                                    if buy_exchange.lower() in config.EXCHANGE_FEES:
+                                        buy_fee = config.EXCHANGE_FEES[buy_exchange.lower()].get(self.fee_type, 0.0)
+                                    
+                                    if sell_exchange.lower() in config.EXCHANGE_FEES:
+                                        sell_fee = config.EXCHANGE_FEES[sell_exchange.lower()].get(self.fee_type, 0.0)
+                                
+                                # Розраховуємо чистий прибуток з урахуванням комісій
+                                if self.include_fees and (buy_fee > 0 or sell_fee > 0):
+                                    buy_with_fee = buy_price * (1 + buy_fee / 100)
+                                    sell_with_fee = sell_price * (1 - sell_fee / 100)
+                                    net_profit_percent = (sell_with_
