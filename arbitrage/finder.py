@@ -18,11 +18,13 @@ class ArbitrageFinder:
                  exchange_names: List[str], 
                  min_profit: float = config.MIN_PROFIT_THRESHOLD, 
                  include_fees: bool = config.INCLUDE_FEES,
-                 fee_type: str = config.FEE_TYPE):
+                 buy_fee_type: str = config.BUY_FEE_TYPE,
+                 sell_fee_type: str = config.SELL_FEE_TYPE):
         self.exchange_names = exchange_names
         self.min_profit = min_profit
         self.include_fees = include_fees
-        self.fee_type = fee_type.lower()  # 'maker' або 'taker'
+        self.buy_fee_type = buy_fee_type.lower()  # 'maker' або 'taker'
+        self.sell_fee_type = sell_fee_type.lower()  # 'maker' або 'taker'
         self.exchanges: Dict[str, BaseExchange] = {}
         
     async def initialize(self):
@@ -125,20 +127,73 @@ class ArbitrageFinder:
                                 # Розрахунок "сирого" прибутку без комісій
                                 profit_percent = (sell_price - buy_price) / buy_price * 100
                                 
-                                # Отримуємо комісії для бірж
+                                # Отримуємо відповідні комісії для бірж (окремо для купівлі та продажу)
                                 buy_fee = 0.0
                                 sell_fee = 0.0
                                 
                                 if self.include_fees:
-                                    # Отримуємо комісії відповідно до типу (maker або taker)
+                                    # Комісія для купівлі з використанням відповідного типу (maker/taker)
                                     if buy_exchange.lower() in config.EXCHANGE_FEES:
-                                        buy_fee = config.EXCHANGE_FEES[buy_exchange.lower()].get(self.fee_type, 0.0)
+                                        buy_fee = config.EXCHANGE_FEES[buy_exchange.lower()].get(self.buy_fee_type, 0.0)
                                     
+                                    # Комісія для продажу з використанням відповідного типу (maker/taker)
                                     if sell_exchange.lower() in config.EXCHANGE_FEES:
-                                        sell_fee = config.EXCHANGE_FEES[sell_exchange.lower()].get(self.fee_type, 0.0)
+                                        sell_fee = config.EXCHANGE_FEES[sell_exchange.lower()].get(self.sell_fee_type, 0.0)
                                 
                                 # Розраховуємо чистий прибуток з урахуванням комісій
                                 if self.include_fees and (buy_fee > 0 or sell_fee > 0):
                                     buy_with_fee = buy_price * (1 + buy_fee / 100)
                                     sell_with_fee = sell_price * (1 - sell_fee / 100)
-                                    net_profit_percent = (sell_with_
+                                    net_profit_percent = (sell_with_fee - buy_with_fee) / buy_with_fee * 100
+                                    
+                                    # Використовуємо чистий прибуток для порівняння з порогом
+                                    compare_profit = net_profit_percent
+                                else:
+                                    # Якщо комісії вимкнені, використовуємо "сирий" прибуток
+                                    compare_profit = profit_percent
+                                    net_profit_percent = None
+                                
+                                # Якщо прибуток перевищує мінімальний поріг
+                                if compare_profit >= self.min_profit:
+                                    opportunity = ArbitrageOpportunity(
+                                        symbol=symbol,
+                                        buy_exchange=buy_exchange,
+                                        sell_exchange=sell_exchange,
+                                        buy_price=buy_price,
+                                        sell_price=sell_price,
+                                        profit_percent=profit_percent,
+                                        buy_fee=buy_fee if self.include_fees else 0.0,
+                                        sell_fee=sell_fee if self.include_fees else 0.0,
+                                        net_profit_percent=net_profit_percent,
+                                        buy_fee_type=self.buy_fee_type if self.include_fees else "",
+                                        sell_fee_type=self.sell_fee_type if self.include_fees else ""
+                                    )
+                                    opportunities.append(opportunity)
+                                    
+                                    # Логуємо зі інформацією про комісії, якщо вони використовуються
+                                    if self.include_fees and net_profit_percent is not None:
+                                        logger.info(
+                                            f"Знайдено арбітражну можливість: {symbol} "
+                                            f"купити на {buy_exchange} за {buy_price:.8f} (комісія {self.buy_fee_type}: {buy_fee}%), "
+                                            f"продати на {sell_exchange} за {sell_price:.8f} (комісія {self.sell_fee_type}: {sell_fee}%). "
+                                            f"Прибуток брутто: {profit_percent:.2f}%, "
+                                            f"нетто (з комісіями): {net_profit_percent:.2f}%"
+                                        )
+                                    else:
+                                        logger.info(
+                                            f"Знайдено арбітражну можливість: {symbol} "
+                                            f"купити на {buy_exchange} за {buy_price:.8f}, "
+                                            f"продати на {sell_exchange} за {sell_price:.8f}. "
+                                            f"Прибуток: {profit_percent:.2f}%"
+                                        )
+                                elif self.include_fees and profit_percent >= self.min_profit and net_profit_percent < self.min_profit:
+                                    # Логуємо випадки, коли є потенційний прибуток, але комісії його "з'їдають"
+                                    logger.debug(
+                                        f"Відхилено через комісії: {symbol} "
+                                        f"купити на {buy_exchange} за {buy_price:.8f} (комісія {self.buy_fee_type}: {buy_fee}%), "
+                                        f"продати на {sell_exchange} за {sell_price:.8f} (комісія {self.sell_fee_type}: {sell_fee}%). "
+                                        f"Прибуток брутто: {profit_percent:.2f}%, "
+                                        f"нетто (з комісіями): {net_profit_percent:.2f}% < {self.min_profit}%"
+                                    )
+        
+        return opportunities
