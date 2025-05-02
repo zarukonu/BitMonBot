@@ -43,7 +43,7 @@ async def check_arbitrage_opportunities():
         await arbitrage_finder.initialize()
         
         fee_status = "з урахуванням комісій" if config.INCLUDE_FEES else "без урахування комісій"
-        main_logger.info(f"{config.APP_NAME} успішно запущено ({fee_status}, типи комісій: купівля={config.BUY_FEE_TYPE}, продаж={config.SELL_FEE_TYPE})!")
+        main_logger.info(f"{config.APP_NAME} успішно запущено ({fee_status}, тип комісії купівлі: {config.BUY_FEE_TYPE}, продажу: {config.SELL_FEE_TYPE})!")
         
         # Відправляємо додаткову інформацію про конфігурацію
         if config.INCLUDE_FEES:
@@ -51,16 +51,17 @@ async def check_arbitrage_opportunities():
                 f"<b>ℹ️ Конфігурація {config.APP_NAME}</b>\n\n"
                 f"<b>Мінімальний поріг прибутку:</b> {config.MIN_PROFIT_THRESHOLD}%\n"
                 f"<b>Врахування комісій:</b> Увімкнено\n"
-                f"<b>Типи комісій:</b> купівля={config.BUY_FEE_TYPE}, продаж={config.SELL_FEE_TYPE}\n"
-                f"<b>Комісії бірж:</b>\n"
-                f"   • Binance: купівля={config.EXCHANGE_FEES['binance'][config.BUY_FEE_TYPE]}%, "
-                f"продаж={config.EXCHANGE_FEES['binance'][config.SELL_FEE_TYPE]}%\n"
-                f"   • KuCoin: купівля={config.EXCHANGE_FEES['kucoin'][config.BUY_FEE_TYPE]}%, "
-                f"продаж={config.EXCHANGE_FEES['kucoin'][config.SELL_FEE_TYPE]}%\n"
-                f"   • Kraken: купівля={config.EXCHANGE_FEES['kraken'][config.BUY_FEE_TYPE]}%, "
-                f"продаж={config.EXCHANGE_FEES['kraken'][config.SELL_FEE_TYPE]}%\n"
-                f"<b>Інтервал перевірки:</b> {config.CHECK_INTERVAL} секунд\n"
-                f"<b>Пари для моніторингу:</b> {', '.join(config.PAIRS)}"
+                f"<b>Тип комісій купівлі:</b> {config.BUY_FEE_TYPE}\n"
+                f"<b>Тип комісій продажу:</b> {config.SELL_FEE_TYPE}\n"
+                f"<b>Комісії бірж (купівля):</b>\n"
+                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.BUY_FEE_TYPE]}%\n"
+                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.BUY_FEE_TYPE]}%\n"
+                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.BUY_FEE_TYPE]}%\n"
+                f"<b>Комісії бірж (продаж):</b>\n"
+                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.SELL_FEE_TYPE]}%\n"
+                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.SELL_FEE_TYPE]}%\n"
+                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.SELL_FEE_TYPE]}%\n"
+                f"<b>Інтервал перевірки:</b> {config.CHECK_INTERVAL} секунд"
             )
             await telegram_worker.send_message(config_message, parse_mode="HTML")
         
@@ -75,15 +76,14 @@ async def check_arbitrage_opportunities():
                     message = opp.to_message()
                     await telegram_worker.send_message(message, parse_mode="HTML")
                 
-                # Зберігаємо статус у JSON-файл
+                # Зберігаємо статус у JSON-файл (опціонально)
                 status = {
                     "last_check": datetime.now().isoformat(),
                     "opportunities_found": len(opportunities),
                     "running": running,
                     "include_fees": config.INCLUDE_FEES,
                     "buy_fee_type": config.BUY_FEE_TYPE,
-                    "sell_fee_type": config.SELL_FEE_TYPE,
-                    "monitored_pairs": config.PAIRS
+                    "sell_fee_type": config.SELL_FEE_TYPE
                 }
                 
                 # Створюємо директорію для статусу, якщо вона не існує
@@ -134,6 +134,8 @@ async def main():
     """
     Головна функція програми
     """
+    global loop
+    
     # Налаштовуємо обробники сигналів
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, signal_handler)
@@ -148,8 +150,9 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        # Створюємо директорії для логів
-        os.makedirs(os.path.dirname(config.MAIN_LOG_FILE), exist_ok=True)
+        # Створюємо необхідні директорії
+        os.makedirs("logs", exist_ok=True)
+        os.makedirs("status", exist_ok=True)
         
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main())
