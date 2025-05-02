@@ -1,6 +1,6 @@
 # exchange_api/kraken_api.py
 import ccxt.async_support as ccxt
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
 import logging
 
 from exchange_api.base_exchange import BaseExchange
@@ -62,105 +62,49 @@ class KrakenAPI(BaseExchange):
         except Exception as e:
             logger.error(f"Помилка при отриманні книги ордерів для {symbol} на Kraken: {e}")
             return {}
-    
-    async def check_order_book_depth(self, symbol: str, amount: float) -> Dict:
+            
+    async def check_order_book_depth(self, symbol: str, amount: float) -> Tuple[bool, Optional[float]]:
         """
-        Перевіряє глибину ордербуку для виконання угоди заданого розміру
+        Перевіряє, чи достатньо глибини ордербуку для виконання угоди заданого розміру
         
         Args:
             symbol (str): Символ валютної пари
-            amount (float): Обсяг для купівлі (від'ємне значення) або продажу (додатне)
+            amount (float): Розмір угоди
             
         Returns:
-            Dict: Результат аналізу з інформацією про ліквідність
+            Tuple[bool, Optional[float]]:
+                - bool: True, якщо глибина достатня, False інакше
+                - Optional[float]: Середня ціна виконання або None, якщо глибина недостатня
         """
         try:
-            # Отримуємо ордербук з більшою глибиною
-            orderbook = await self.get_orderbook(symbol, 100)
+            # Отримуємо книгу ордерів з більшою глибиною
+            orderbook = await self.get_orderbook(symbol, limit=100)
             
             if not orderbook or 'bids' not in orderbook or 'asks' not in orderbook:
-                logger.error(f"Не вдалося отримати дані ордербуку для {symbol} на Kraken")
-                return {
-                    "success": False,
-                    "error": "Не вдалося отримати дані ордербуку",
-                    "max_amount": 0,
-                    "expected_slippage": 0
-                }
+                return False, None
             
-            # Для продажу використовуємо біди (bids)
-            if amount > 0:
-                return self._analyze_order_book_side(orderbook['bids'], amount, True)
-            # Для купівлі використовуємо аски (asks)
-            else:
-                return self._analyze_order_book_side(orderbook['asks'], abs(amount), False)
+            # Для покупки використовуємо asks, для продажу - bids
+            asks = orderbook['asks']  # Ордери на продаж
+            
+            total_volume = 0.0
+            total_cost = 0.0
+            
+            # Перевіряємо, чи достатньо обсягу для покупки
+            for price, volume in asks:
+                available_volume = min(volume, amount - total_volume)
+                total_volume += available_volume
+                total_cost += available_volume * price
                 
+                if total_volume >= amount:
+                    avg_price = total_cost / total_volume
+                    return True, avg_price
+                    
+            return False, None
+            
         except Exception as e:
             logger.error(f"Помилка при перевірці глибини ордербуку для {symbol} на Kraken: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "max_amount": 0,
-                "expected_slippage": 0
-            }
-            
-    def _analyze_order_book_side(self, orders, amount: float, is_bid: bool) -> Dict:
-        """
-        Аналізує одну сторону ордербуку (біди або аски)
-        
-        Args:
-            orders: Список ордерів
-            amount (float): Обсяг для виконання
-            is_bid (bool): True якщо аналізуємо біди, False якщо аски
-            
-        Returns:
-            Dict: Результат аналізу
-        """
-        total_volume = 0
-        weighted_price = 0
-        
-        for price_str, volume_str in orders:
-            price = float(price_str)
-            volume = float(volume_str)
-            
-            # Скільки криптовалюти можемо купити/продати за цією ціною
-            available_volume = min(amount - total_volume, volume)
-            
-            if available_volume <= 0:
-                break
-                
-            weighted_price += price * available_volume
-            total_volume += available_volume
-            
-            if total_volume >= amount:
-                break
-        
-        # Якщо недостатньо ліквідності
-        if total_volume < amount:
-            return {
-                "success": False,
-                "error": f"Недостатня глибина ордербуку. Доступно: {total_volume}, потрібно: {amount}",
-                "max_amount": total_volume,
-                "expected_slippage": 0
-            }
-        
-        # Розраховуємо середньозважену ціну і прослизання
-        average_price = weighted_price / total_volume
-        best_price = float(orders[0][0])
-        
-        # Для бідів (продаж) та асків (купівля) прослизання розраховується по-різному
-        if is_bid:
-            slippage = (best_price - average_price) / best_price * 100
-        else:
-            slippage = (average_price - best_price) / best_price * 100
-        
-        return {
-            "success": True,
-            "average_price": average_price,
-            "best_price": best_price,
-            "expected_slippage": slippage,
-            "max_amount": total_volume
-        }
-            
+            return False, None
+    
     async def close(self):
         """
         Закрити з'єднання з біржею
