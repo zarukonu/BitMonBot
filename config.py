@@ -5,6 +5,11 @@ from dotenv import load_dotenv
 # Завантаження змінних середовища
 load_dotenv()
 
+# App settings
+APP_NAME = "Bitmonbot"
+VERSION = "0.2.1"  # Додано на основі інформації з Changelog
+START_MESSAGE = f"✅ {APP_NAME} стартував!"
+
 # API keys
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "")
@@ -71,10 +76,6 @@ ARBITRAGE_LOG_FILE = "logs/arbitrage.log"
 # Exchange API settings
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "10"))  # seconds
 RATE_LIMIT_RETRY = os.getenv("RATE_LIMIT_RETRY", "True").lower() == "true"
-
-# App settings
-APP_NAME = "Bitmonbot"
-START_MESSAGE = f"✅ {APP_NAME} стартував!"
 
 # Web server settings
 WEB_SERVER_ENABLED = os.getenv("WEB_SERVER_ENABLED", "False").lower() == "true"
