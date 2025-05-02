@@ -4,14 +4,17 @@ import logging
 import signal
 import sys
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 
 import config
 import logger
 from arbitrage.finder import ArbitrageFinder
+from arbitrage.triangular_finder import TriangularArbitrageFinder
+from arbitrage.pair_analyzer import ArbitragePairAnalyzer
 from telegram_worker import TelegramWorker
+from web_server import start_web_server
 
 # Отримуємо логер
 main_logger = logging.getLogger('main')
@@ -20,70 +23,99 @@ main_logger = logging.getLogger('main')
 running = True
 telegram_worker = None
 arbitrage_finder = None
+triangular_finder = None
+pair_analyzer = None
+web_dashboard = None
 
 async def check_arbitrage_opportunities():
     """
     Перевіряє арбітражні можливості та відправляє сповіщення
     """
-    global running, telegram_worker, arbitrage_finder
+    global running, telegram_worker, arbitrage_finder, triangular_finder, pair_analyzer, web_dashboard
     
     try:
         # Ініціалізуємо Telegram Worker
         telegram_worker = TelegramWorker(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
         await telegram_worker.start()
         
+        # Створюємо директорію для статусу, якщо вона не існує
+        os.makedirs("status", exist_ok=True)
+        
         # Ініціалізуємо пошуковик арбітражних можливостей
-        arbitrage_finder = ArbitrageFinder(
-            ['binance', 'kucoin', 'kraken'],
-            min_profit=config.MIN_PROFIT_THRESHOLD,
-            include_fees=config.INCLUDE_FEES,
-            fee_type=config.FEE_TYPE
-        )
+        arbitrage_finder = ArbitrageFinder(['binance', 'kucoin', 'kraken'])
         await arbitrage_finder.initialize()
         
-        fee_status = "з урахуванням комісій" if config.INCLUDE_FEES else "без урахування комісій"
-        main_logger.info(f"{config.APP_NAME} успішно запущено ({fee_status}, тип комісії: {config.FEE_TYPE})!")
+        # Ініціалізуємо пошуковик трикутних арбітражних можливостей на Binance
+        triangular_finder = TriangularArbitrageFinder(
+            arbitrage_finder.exchanges['binance']
+        )
         
-        # Відправляємо додаткову інформацію про конфігурацію
-        if config.INCLUDE_FEES:
-            config_message = (
-                f"<b>ℹ️ Конфігурація {config.APP_NAME}</b>\n\n"
-                f"<b>Мінімальний поріг прибутку:</b> {config.MIN_PROFIT_THRESHOLD}%\n"
-                f"<b>Врахування комісій:</b> Увімкнено\n"
-                f"<b>Тип комісій:</b> {config.FEE_TYPE}\n"
-                f"<b>Комісії бірж ({config.FEE_TYPE}):</b>\n"
-                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.FEE_TYPE]}%\n"
-                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.FEE_TYPE]}%\n"
-                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.FEE_TYPE]}%\n"
-                f"<b>Інтервал перевірки:</b> {config.CHECK_INTERVAL} секунд"
-            )
-            await telegram_worker.send_message(config_message, parse_mode="HTML")
+        # Ініціалізуємо аналізатор пар
+        pair_analyzer = ArbitragePairAnalyzer()
+        
+        # Запускаємо веб-сервер, якщо він увімкнений в конфігурації
+        web_dashboard = await start_web_server()
+        
+        main_logger.info(f"{config.APP_NAME} v{config.VERSION} успішно запущено!")
         
         # Основний цикл роботи
         while running:
             try:
-                # Шукаємо арбітражні можливості
-                opportunities = await arbitrage_finder.find_opportunities()
+                # Визначаємо поточний час
+                now = datetime.now().replace(tzinfo=timezone.utc)
+                current_hour = now.hour
                 
-                # Якщо є можливості, відправляємо повідомлення
-                for opp in opportunities:
+                # Перевіряємо, чи зараз пікові години для арбітражу
+                is_peak_time = any(start <= current_hour < end for start, end in config.PEAK_HOURS)
+                
+                # Встановлюємо інтервал перевірки залежно від часу
+                check_interval = config.PEAK_CHECK_INTERVAL if is_peak_time else config.REGULAR_CHECK_INTERVAL
+                
+                main_logger.info(f"Початок перевірки арбітражних можливостей. Режим: {'пікові години' if is_peak_time else 'звичайний'}")
+                
+                # Виконуємо пошук крос-біржових можливостей
+                cross_opportunities = await arbitrage_finder.find_opportunities()
+                main_logger.info(f"Знайдено {len(cross_opportunities)} крос-біржових можливостей")
+                
+                # Виконуємо пошук трикутних можливостей на Binance
+                triangular_opportunities = await triangular_finder.find_opportunities()
+                main_logger.info(f"Знайдено {len(triangular_opportunities)} трикутних можливостей")
+                
+                # Об'єднуємо можливості
+                all_opportunities = cross_opportunities + triangular_opportunities
+                
+                # Оновлюємо статистику пар
+                if all_opportunities:
+                    await pair_analyzer.update_stats(all_opportunities)
+                
+                # Сортуємо за чистим прибутком
+                all_opportunities.sort(key=lambda x: x.net_profit_percent, reverse=True)
+                
+                # Відправляємо сповіщення про найкращі можливості
+                for opp in all_opportunities[:5]:  # Відправляємо повідомлення лише про топ-5 можливостей
                     message = opp.to_message()
                     await telegram_worker.send_message(message, parse_mode="HTML")
                 
-                # Зберігаємо статус у JSON-файл (опціонально)
+                # Зберігаємо статус
                 status = {
-                    "last_check": datetime.now().isoformat(),
-                    "opportunities_found": len(opportunities),
+                    "last_check": now.isoformat(),
+                    "is_peak_time": is_peak_time,
+                    "check_interval": check_interval,
+                    "opportunities_found": len(all_opportunities),
+                    "top_opportunities": [opp.to_dict() for opp in all_opportunities[:10]],
                     "running": running,
-                    "include_fees": config.INCLUDE_FEES,
-                    "fee_type": config.FEE_TYPE
+                    "version": config.VERSION
                 }
                 
                 with open("status.json", "w") as f:
-                    json.dump(status, f)
+                    json.dump(status, f, indent=2)
+                
+                # Зберігаємо статистику пар
+                await pair_analyzer._save_stats()
                 
                 # Чекаємо до наступної перевірки
-                await asyncio.sleep(config.CHECK_INTERVAL)
+                main_logger.info(f"Перевірка завершена. Наступна перевірка через {check_interval} секунд")
+                await asyncio.sleep(check_interval)
                 
             except Exception as e:
                 main_logger.error(f"Помилка в основному циклі: {e}")
@@ -103,6 +135,9 @@ async def cleanup():
     Закриває всі ресурси при зупинці програми
     """
     main_logger.info(f"Зупинка {config.APP_NAME}...")
+    
+    if web_dashboard:
+        await web_dashboard.stop()
     
     if arbitrage_finder:
         await arbitrage_finder.close_exchanges()
@@ -140,6 +175,10 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        # Створюємо необхідні директорії
+        os.makedirs("logs", exist_ok=True)
+        os.makedirs("status", exist_ok=True)
+        
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main())
     except KeyboardInterrupt:
