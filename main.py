@@ -134,8 +134,6 @@ async def main():
     """
     Головна функція програми
     """
-    global loop
-    
     # Налаштовуємо обробники сигналів
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, signal_handler)
