@@ -38,42 +38,10 @@ async def test_telegram_notifications():
         )
         
         # Створюємо тестові арбітражні можливості
-        pairs = ["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT", "BNB/USDT"]
+        pairs = ["BTC/USDT", "ETH/USDT", "XRP/USDT"]
         exchanges = ["Binance", "KuCoin", "Kraken"]
         
-        # Додаємо повідомлення про тестування з комісіями
-        await telegram_worker.send_message(
-            "<b>🧪 Початок тестування арбітражних можливостей</b>\n"
-            "Буде створено кілька тестових арбітражних можливостей з різними комісіями",
-            parse_mode="HTML"
-        )
-        
-        # Отримуємо комісії з конфігурації для реалістичних тестів
-        fee_configs = {
-            "Binance": {
-                "buy": config.EXCHANGE_FEES["binance"][config.BUY_FEE_TYPE],
-                "sell": config.EXCHANGE_FEES["binance"][config.SELL_FEE_TYPE]
-            },
-            "KuCoin": {
-                "buy": config.EXCHANGE_FEES["kucoin"][config.BUY_FEE_TYPE],
-                "sell": config.EXCHANGE_FEES["kucoin"][config.SELL_FEE_TYPE]
-            },
-            "Kraken": {
-                "buy": config.EXCHANGE_FEES["kraken"][config.BUY_FEE_TYPE],
-                "sell": config.EXCHANGE_FEES["kraken"][config.SELL_FEE_TYPE]
-            }
-        }
-        
-        # Генеруємо кілька арбітражних можливостей з різним рівнем прибутковості
-        profit_scenarios = [
-            {"profit": random.uniform(0.5, 0.9), "type": "низького"},
-            {"profit": random.uniform(1.0, 1.9), "type": "середнього"},
-            {"profit": random.uniform(2.0, 4.9), "type": "високого"},
-            {"profit": random.uniform(5.0, 10.0), "type": "надвисокого"}
-        ]
-        
-        for scenario in profit_scenarios:
-            # Випадково вибираємо пару та біржі
+        for _ in range(3):
             pair = random.choice(pairs)
             buy_exchange = random.choice(exchanges)
             
@@ -81,17 +49,14 @@ async def test_telegram_notifications():
             available_exchanges = [e for e in exchanges if e != buy_exchange]
             sell_exchange = random.choice(available_exchanges)
             
-            # Генеруємо ціну купівлі (реалістична для обраної пари)
-            base_price = get_realistic_price(pair)
-            buy_price = base_price * random.uniform(0.98, 1.0)
-            
-            # Визначаємо ціну продажу на основі бажаного прибутку
-            profit_percent = scenario["profit"]
+            # Генеруємо ціни з хорошою арбітражною можливістю
+            buy_price = random.uniform(10, 50000)
+            profit_percent = random.uniform(1.0, 5.0)
             sell_price = buy_price * (1 + profit_percent / 100)
             
-            # Отримуємо комісії для обраних бірж
-            buy_fee = fee_configs[buy_exchange]["buy"]
-            sell_fee = fee_configs[sell_exchange]["sell"]
+            # Отримуємо комісії з конфігурації
+            buy_fee = config.EXCHANGE_FEES[buy_exchange.lower()][config.BUY_FEE_TYPE]
+            sell_fee = config.EXCHANGE_FEES[sell_exchange.lower()][config.SELL_FEE_TYPE]
             
             # Розраховуємо чистий прибуток
             buy_with_fee = buy_price * (1 + buy_fee / 100)
@@ -112,6 +77,40 @@ async def test_telegram_notifications():
                 sell_fee_type=config.SELL_FEE_TYPE
             )
             
-            # Додаємо інформаційне повідомлення про тип тесту
+            # Відправляємо форматоване повідомлення про арбітражну можливість
             await telegram_worker.send_message(
-                f"<b>🧪 Тес
+                opportunity.to_message(),
+                parse_mode="HTML"
+            )
+            
+            # Чекаємо 2 секунди між повідомленнями
+            await asyncio.sleep(2)
+        
+        # Чекаємо, поки всі повідомлення будуть відправлені
+        await telegram_worker.queue.join()
+        
+        # Відправляємо повідомлення про завершення тесту
+        await telegram_worker.send_message("✅ Тест успішно завершено")
+        
+        # Знову чекаємо на відправку останнього повідомлення
+        await telegram_worker.queue.join()
+        
+        test_logger.info("Тест успішно завершено")
+        
+    except Exception as e:
+        test_logger.error(f"Помилка під час тесту: {e}")
+    finally:
+        # Зупиняємо Telegram Worker
+        await telegram_worker.stop()
+
+if __name__ == "__main__":
+    try:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(test_telegram_notifications())
+    except KeyboardInterrupt:
+        test_logger.info("Тест зупинено користувачем")
+    except Exception as e:
+        test_logger.error(f"Критична помилка під час тесту: {e}")
+    finally:
+        if loop and not loop.is_closed():
+            loop.close()
