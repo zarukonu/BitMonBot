@@ -54,7 +54,7 @@ async def check_arbitrage_opportunities():
             f"• Тип комісій для продажу: {config.SELL_FEE_TYPE}\n"
             f"• Мінімальний поріг прибутку: {config.MIN_PROFIT_THRESHOLD}%\n"
             f"• Біржі: Binance, KuCoin, Kraken\n"
-            f"• Валютні пари: {', '.join(config.PAIRS)}\n"
+            f"• Валютні пари: {', '.join(config.PAIRS[:5])}...\n"
             f"• Інтервал перевірки: {config.CHECK_INTERVAL} секунд"
         )
         
