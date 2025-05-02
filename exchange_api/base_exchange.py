@@ -58,10 +58,18 @@ class BaseExchange(ABC):
         
         Args:
             symbol (str): Символ валютної пари
-            amount (float): Сума для виконання
+            amount (float): Сума для виконання (додатна для продажу, від'ємна для купівлі)
             
         Returns:
             Dict: Інформація про можливе виконання замовлення
+                {
+                    "success": bool,             # Чи можливо виконати угоду
+                    "average_price": float,      # Середньозважена ціна виконання (якщо success=True)
+                    "best_price": float,         # Найкраща доступна ціна
+                    "expected_slippage": float,  # Очікуване прослизання у відсотках
+                    "max_amount": float,         # Максимальний доступний обсяг
+                    "error": str                 # Опис помилки (якщо success=False)
+                }
         """
         pass
     
