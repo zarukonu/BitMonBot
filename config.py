@@ -1,4 +1,6 @@
+# config.py
 import os
+import json
 from dotenv import load_dotenv
 
 # Завантаження змінних середовища
@@ -16,6 +18,9 @@ KRAKEN_API_SECRET = os.getenv("KRAKEN_API_SECRET", "")
 # Telegram config
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+# Шлях до файлу з користувачами
+USERS_FILE = os.getenv("USERS_FILE", "users.json")
 
 # Arbitrage settings
 MIN_PROFIT_THRESHOLD = float(os.getenv("MIN_PROFIT_THRESHOLD", "0.5"))  # мінімальний % прибутку
@@ -42,73 +47,51 @@ EXCHANGE_FEES = {
 BUY_FEE_TYPE = os.getenv("BUY_FEE_TYPE", "taker").lower()  # Тип комісії для купівлі
 SELL_FEE_TYPE = os.getenv("SELL_FEE_TYPE", "taker").lower()  # Тип комісії для продажу
 
-# Для зворотної сумісності - використовується у логах та повідомленнях
-FEE_TYPE = os.getenv("FEE_TYPE", BUY_FEE_TYPE).lower()  # За замовчуванням використовуємо такий же тип, як для купівлі
-
 # Враховувати комісії при розрахунку прибутку
 INCLUDE_FEES = os.getenv("INCLUDE_FEES", "True").lower() == "true"
 
 # Supported cryptocurrency pairs
-PAIRS = [
+# Основні пари, які підтримуються системою
+DEFAULT_PAIRS = [
     "BTC/USDT", 
     "ETH/USDT", 
     "XRP/USDT",
     "BNB/USDT",
-    "SOL/USDT",
-    # Додаємо пари з аналізу ринку
-    "TRX/USDT",
-    "HBAR/USDT",
-    "NEAR/USDT",
-    "ATOM/USDT",
-    "ADA/USDT",
-    "AVAX/USDT"
+    "SOL/USDT"
 ]
 
-# Налаштування пар для кожної біржі
-EXCHANGE_SPECIFIC_PAIRS = {
-    'binance': [
-        "BTC/USDT", 
-        "ETH/USDT", 
-        "XRP/USDT",
-        "BNB/USDT",
-        "SOL/USDT",
-        "TRX/USDT",
-        "HBAR/USDT",
-        "NEAR/USDT",
-        "ATOM/USDT",
-        "ADA/USDT",
-        "AVAX/USDT"
-    ],
-    'kucoin': [
-        "BTC/USDT", 
-        "ETH/USDT", 
-        "XRP/USDT",
-        "BNB/USDT",
-        "SOL/USDT",
-        "TRX/USDT",
-        "HBAR/USDT",
-        "NEAR/USDT",
-        "ATOM/USDT",
-        "ADA/USDT",
-        "AVAX/USDT"
-    ],
-    'kraken': [
-        "BTC/USDT", 
-        "ETH/USDT", 
-        "XRP/USDT",
-        "SOL/USDT",
-        "ATOM/USDT",
-        "ADA/USDT",
-        "AVAX/USDT"
-        # Kraken не підтримує TRX/USDT, HBAR/USDT, NEAR/USDT, BNB/USDT
-    ]
-}
+# Розширений список пар для преміум-користувачів
+PREMIUM_PAIRS = DEFAULT_PAIRS + [
+    "ADA/USDT",
+    "DOT/USDT",
+    "DOGE/USDT",
+    "AVAX/USDT",
+    "MATIC/USDT"
+]
+
+# Повний список підтримуваних пар
+ALL_PAIRS = PREMIUM_PAIRS + [
+    "LTC/USDT",
+    "UNI/USDT",
+    "LINK/USDT",
+    "ATOM/USDT",
+    "TRX/USDT",
+    "ETC/USDT",
+    "XLM/USDT",
+    "VET/USDT",
+    "THETA/USDT",
+    "FIL/USDT"
+]
+
+# Список усіх підтримуваних пар для використання в системі
+PAIRS = ALL_PAIRS
 
 # Logging settings
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 MAIN_LOG_FILE = "logs/main.log"
 TELEGRAM_LOG_FILE = "logs/telegram.log"
 ARBITRAGE_LOG_FILE = "logs/arbitrage.log"
+USERS_LOG_FILE = "logs/users.log"
 
 # Exchange API settings
 REQUEST_TIMEOUT = 10  # seconds
@@ -117,3 +100,69 @@ RATE_LIMIT_RETRY = True
 # App settings
 APP_NAME = "Bitmonbot"
 START_MESSAGE = f"✅ {APP_NAME} стартував!"
+
+# Налаштування для роботи з користувачами
+ADMIN_USER_IDS = os.getenv("ADMIN_USER_IDS", "").split(",")  # ID адміністраторів через кому
+DEFAULT_MIN_PROFIT = 0.8  # Мінімальний поріг прибутку для нових користувачів
+USER_SUBSCRIPTION_TYPES = {
+    "free": {
+        "max_pairs": 3,
+        "pairs_list": DEFAULT_PAIRS,
+        "notification_delay": 60,  # секунд
+        "description": "Безкоштовна підписка (до 3 пар, затримка 60 секунд)"
+    },
+    "premium": {
+        "max_pairs": 10,
+        "pairs_list": PREMIUM_PAIRS,
+        "notification_delay": 0,  # без затримки
+        "description": "Преміум підписка (до 10 пар, без затримки)"
+    },
+    "admin": {
+        "max_pairs": -1,  # без обмежень
+        "pairs_list": ALL_PAIRS,
+        "notification_delay": 0,
+        "description": "Адміністраторський доступ (без обмежень)"
+    }
+}
+
+# Команди бота
+BOT_COMMANDS = {
+    "/start": "Почати роботу з ботом",
+    "/help": "Показати довідку",
+    "/status": "Перевірити статус підписки",
+    "/subscribe": "Підписатися на повідомлення",
+    "/unsubscribe": "Відписатися від повідомлень",
+    "/pairs": "Керування валютними парами",
+    "/threshold": "Встановити мінімальний поріг прибутку",
+    "/settings": "Налаштування користувача"
+}
+
+def load_users():
+    """
+    Завантажує список користувачів з файлу
+    """
+    try:
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE, 'r') as f:
+                return json.load(f)
+        return {}
+    except Exception as e:
+        print(f"Помилка при завантаженні користувачів: {e}")
+        return {}
+
+def save_users(users):
+    """
+    Зберігає список користувачів у файл
+    """
+    try:
+        # Створюємо директорію, якщо вона не існує
+        users_dir = os.path.dirname(USERS_FILE)
+        if users_dir and not os.path.exists(users_dir):
+            os.makedirs(users_dir)
+            
+        with open(USERS_FILE, 'w') as f:
+            json.dump(users, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"Помилка при збереженні користувачів: {e}")
+        return False
