@@ -1,8 +1,8 @@
 # telegram_worker.py
 import asyncio
 import logging
-from typing import Optional, Dict, Any
 import time
+from typing import Optional
 import config
 from notifier.telegram_notifier import TelegramNotifier
 
@@ -18,10 +18,7 @@ class TelegramWorker:
         self.queue: Optional[asyncio.Queue] = None
         self.notifier: Optional[TelegramNotifier] = None
         self.worker_task: Optional[asyncio.Task] = None
-        self.monitoring_task: Optional[asyncio.Task] = None
-        self.start_time = time.time()
-        self.messages_sent = 0
-        self.messages_failed = 0
+        self.monitor_task: Optional[asyncio.Task] = None
         
     async def start(self):
         """
@@ -38,7 +35,7 @@ class TelegramWorker:
         self.worker_task = asyncio.create_task(self.notifier.process_queue())
         
         # Запускаємо моніторинг черги
-        self.monitoring_task = asyncio.create_task(self._monitor_queue())
+        self.monitor_task = asyncio.create_task(self.monitor_queue())
         
         # Відправляємо повідомлення про старт бота
         await self.notifier.send_formatted_message(config.START_MESSAGE)
@@ -51,14 +48,23 @@ class TelegramWorker:
         """
         logger.info("Зупинка Telegram Worker...")
         
-        if self.monitoring_task:
-            self.monitoring_task.cancel()
+        if self.monitor_task:
+            self.monitor_task.cancel()
             try:
-                await self.monitoring_task
+                await self.monitor_task
             except asyncio.CancelledError:
                 pass
-            self.monitoring_task = None
+            self.monitor_task = None
         
+        # Чекаємо завершення відправки всіх повідомлень
+        if self.queue:
+            try:
+                # Встановлюємо таймаут на 5 секунд
+                await asyncio.wait_for(self.queue.join(), timeout=5)
+                logger.info("Всі повідомлення у черзі оброблено")
+            except asyncio.TimeoutError:
+                logger.warning(f"Не всі повідомлення було відправлено. Залишилось {self.queue.qsize()} повідомлень")
+            
         if self.worker_task:
             self.worker_task.cancel()
             try:
@@ -73,7 +79,7 @@ class TelegramWorker:
             
         logger.info("Telegram Worker успішно зупинено")
         
-    async def send_message(self, message: str, parse_mode: Optional[str] = None) -> bool:
+    async def send_message(self, message: str, parse_mode: Optional[str] = None):
         """
         Додає повідомлення до черги на відправку
         """
@@ -86,69 +92,25 @@ class TelegramWorker:
         else:
             return await self.notifier.send_message(message)
             
-    async def get_queue_info(self) -> Dict[str, Any]:
+    async def monitor_queue(self):
         """
-        Повертає інформацію про стан черги повідомлень
+        Моніторить стан черги повідомлень
         """
-        if not self.queue:
-            return {
-                "status": "not_initialized",
-                "queue_size": 0,
-                "uptime_seconds": 0,
-                "messages_sent": 0,
-                "messages_failed": 0
-            }
-            
-        return {
-            "status": "running",
-            "queue_size": self.queue.qsize(),
-            "uptime_seconds": int(time.time() - self.start_time),
-            "messages_sent": self.messages_sent,
-            "messages_failed": self.messages_failed
-        }
+        logger.info("Запущено моніторинг черги повідомлень")
         
-    async def send_queue_status(self):
-        """
-        Відправляє інформацію про стан черги в Telegram
-        """
-        if not self.notifier:
-            logger.error("Неможливо відправити статус черги - Telegram Worker не запущено")
-            return False
-            
-        queue_info = await self.get_queue_info()
-        uptime_hours = queue_info["uptime_seconds"] // 3600
-        uptime_minutes = (queue_info["uptime_seconds"] % 3600) // 60
-        uptime_seconds = queue_info["uptime_seconds"] % 60
-        
-        status_message = (
-            f"<b>📊 Статус Telegram сервісу</b>\n\n"
-            f"<b>Стан:</b> {'Працює' if queue_info['status'] == 'running' else 'Не ініціалізовано'}\n"
-            f"<b>Розмір черги:</b> {queue_info['queue_size']} повідомлень\n"
-            f"<b>Час роботи:</b> {uptime_hours:02d}:{uptime_minutes:02d}:{uptime_seconds:02d}\n"
-            f"<b>Відправлено повідомлень:</b> {queue_info['messages_sent']}\n"
-            f"<b>Невдалих відправок:</b> {queue_info['messages_failed']}"
-        )
-        
-        return await self.notifier.send_formatted_message(status_message, parse_mode="HTML")
-        
-    async def _monitor_queue(self):
-        """
-        Періодично моніторить стан черги та логує її статус
-        """
-        try:
-            while True:
-                queue_info = await self.get_queue_info()
-                logger.info(f"Статус черги: {queue_info['queue_size']} повідомлень в черзі, "
-                           f"{queue_info['messages_sent']} відправлено, "
-                           f"{queue_info['messages_failed']} невдалих")
+        while True:
+            try:
+                # Логуємо розмір черги
+                if self.queue and self.queue.qsize() > 5:
+                    logger.warning(f"У черзі накопичилось {self.queue.qsize()} повідомлень!")
                 
-                # Відправляємо статус у Telegram тільки якщо є повідомлення в черзі
-                # або минув певний час з моменту останньої перевірки
-                if queue_info['queue_size'] > 5:
-                    await self.send_queue_status()
-                    
-                await asyncio.sleep(config.QUEUE_STATUS_INTERVAL)
-        except asyncio.CancelledError:
-            logger.info("Моніторинг черги зупинено")
-        except Exception as e:
-            logger.error(f"Помилка при моніторингу черги: {e}")
+                # Чекаємо до наступної перевірки
+                await asyncio.sleep(30)  # Перевірка кожні 30 секунд
+                
+            except asyncio.CancelledError:
+                logger.info("Моніторинг черги зупинено")
+                break
+            except Exception as e:
+                logger.error(f"Помилка при моніторингу черги: {e}")
+                # Чекаємо трохи перед повторною спробою
+                await asyncio.sleep(5)
