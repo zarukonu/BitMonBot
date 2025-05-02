@@ -34,21 +34,26 @@ async def check_arbitrage_opportunities():
     global running, telegram_worker, arbitrage_finder, triangular_finder, pair_analyzer, web_dashboard
     
     try:
+        # Створюємо необхідні директорії
+        os.makedirs("logs", exist_ok=True)
+        os.makedirs("status", exist_ok=True)
+        
         # Ініціалізуємо Telegram Worker
         telegram_worker = TelegramWorker(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
         await telegram_worker.start()
-        
-        # Створюємо директорію для статусу, якщо вона не існує
-        os.makedirs("status", exist_ok=True)
         
         # Ініціалізуємо пошуковик арбітражних можливостей
         arbitrage_finder = ArbitrageFinder(['binance', 'kucoin', 'kraken'])
         await arbitrage_finder.initialize()
         
-        # Ініціалізуємо пошуковик трикутних арбітражних можливостей на Binance
-        triangular_finder = TriangularArbitrageFinder(
-            arbitrage_finder.exchanges['binance']
-        )
+        # Перевірка успішної ініціалізації бірж
+        if 'binance' not in arbitrage_finder.exchanges:
+            main_logger.warning("Біржу Binance не було ініціалізовано, трикутний арбітраж неможливий")
+        else:
+            # Ініціалізуємо пошуковик трикутних арбітражних можливостей на Binance
+            triangular_finder = TriangularArbitrageFinder(
+                arbitrage_finder.exchanges['binance']
+            )
         
         # Ініціалізуємо аналізатор пар
         pair_analyzer = ArbitragePairAnalyzer()
@@ -77,14 +82,16 @@ async def check_arbitrage_opportunities():
                 cross_opportunities = await arbitrage_finder.find_opportunities()
                 main_logger.info(f"Знайдено {len(cross_opportunities)} крос-біржових можливостей")
                 
-                # Виконуємо пошук трикутних можливостей на Binance
-                triangular_opportunities = await triangular_finder.find_opportunities()
-                main_logger.info(f"Знайдено {len(triangular_opportunities)} трикутних можливостей")
+                # Виконуємо пошук трикутних можливостей на Binance, якщо біржа доступна
+                triangular_opportunities = []
+                if triangular_finder:
+                    triangular_opportunities = await triangular_finder.find_opportunities()
+                    main_logger.info(f"Знайдено {len(triangular_opportunities)} трикутних можливостей")
                 
                 # Об'єднуємо можливості
                 all_opportunities = cross_opportunities + triangular_opportunities
                 
-                # Оновлюємо статистику пар
+                # Оновлюємо статистику пар, якщо знайдено можливості
                 if all_opportunities:
                     await pair_analyzer.update_stats(all_opportunities)
                 
@@ -109,9 +116,6 @@ async def check_arbitrage_opportunities():
                 
                 with open("status.json", "w") as f:
                     json.dump(status, f, indent=2)
-                
-                # Зберігаємо статистику пар
-                await pair_analyzer._save_stats()
                 
                 # Чекаємо до наступної перевірки
                 main_logger.info(f"Перевірка завершена. Наступна перевірка через {check_interval} секунд")
@@ -159,7 +163,8 @@ async def main():
     """
     Головна функція програми
     """
-    global loop
+    # Отримуємо event loop
+    loop = asyncio.get_event_loop()
     
     # Налаштовуємо обробники сигналів
     for sig in (signal.SIGINT, signal.SIGTERM):
