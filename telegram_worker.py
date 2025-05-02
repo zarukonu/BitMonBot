@@ -446,7 +446,10 @@ class TelegramWorker:
         if not args:
             # Показуємо поточний список пар
             current_pairs = user_data["pairs"]
-            all_pairs = config.PAIRS
+            
+            # Отримуємо тип підписки та доступні пари
+            subscription_type = user_data["subscription_type"]
+            available_pairs = config.USER_SUBSCRIPTION_TYPES[subscription_type]["pairs_list"]
             
             pairs_message = "<b>Керування валютними парами</b>\n\n"
             
@@ -456,12 +459,16 @@ class TelegramWorker:
                     pairs_message += f"✅ {pair}\n"
             else:
                 pairs_message += "У вас не вибрано жодної пари.\n"
-                
-            pairs_message += "\nДоступні пари:\n"
-            for pair in all_pairs:
-                if pair not in current_pairs:
-                    pairs_message += f"❌ {pair}\n"
                     
+            pairs_message += "\nДоступні для вашої підписки пари:\n"
+            remaining_pairs = [pair for pair in available_pairs if pair not in current_pairs]
+            
+            if remaining_pairs:
+                for pair in remaining_pairs:
+                    pairs_message += f"❌ {pair}\n"
+            else:
+                pairs_message += "Ви вже додали всі доступні пари.\n"
+                        
             pairs_message += (
                 "\nДля додавання або видалення пари використайте команду:\n"
                 "/pairs add ПАРА - додати пару\n"
@@ -488,17 +495,18 @@ class TelegramWorker:
             await self.send_message("Список пар скинуто.", chat_id)
             
         elif subcmd == "all":
-            # Додаємо всі пари
+            # Додаємо всі доступні пари для поточного типу підписки
             subscription_type = user_data["subscription_type"]
+            available_pairs = config.USER_SUBSCRIPTION_TYPES[subscription_type]["pairs_list"]
             max_pairs = config.USER_SUBSCRIPTION_TYPES[subscription_type]["max_pairs"]
             
             if max_pairs == -1:  # Без обмежень
-                self.user_manager.update_user_pairs(chat_id, config.PAIRS)
-                await self.send_message(f"Додано всі доступні пари ({len(config.PAIRS)}).", chat_id)
+                self.user_manager.update_user_pairs(chat_id, available_pairs)
+                await self.send_message(f"Додано всі доступні пари ({len(available_pairs)}).", chat_id)
             else:
-                self.user_manager.update_user_pairs(chat_id, config.PAIRS[:max_pairs])
+                self.user_manager.update_user_pairs(chat_id, available_pairs[:max_pairs])
                 await self.send_message(
-                    f"Додано {min(max_pairs, len(config.PAIRS))} пар (ліміт вашої підписки).",
+                    f"Додано {min(max_pairs, len(available_pairs))} пар (ліміт вашої підписки).",
                     chat_id
                 )
                 
@@ -506,8 +514,15 @@ class TelegramWorker:
             # Додаємо пару
             pair = parts[1].strip().upper()
             
-            if pair not in config.PAIRS:
-                await self.send_message(f"Пара {pair} не підтримується.", chat_id)
+            # Перевіряємо, чи пара доступна для цього типу підписки
+            subscription_type = user_data["subscription_type"]
+            available_pairs = config.USER_SUBSCRIPTION_TYPES[subscription_type]["pairs_list"]
+            
+            if pair not in available_pairs:
+                await self.send_message(
+                    f"Пара {pair} не підтримується або недоступна для вашого типу підписки.",
+                    chat_id
+                )
                 return
                 
             current_pairs = user_data["pairs"]
@@ -516,7 +531,6 @@ class TelegramWorker:
                 return
                 
             # Перевіряємо ліміт пар
-            subscription_type = user_data["subscription_type"]
             max_pairs = config.USER_SUBSCRIPTION_TYPES[subscription_type]["max_pairs"]
             
             if max_pairs != -1 and len(current_pairs) >= max_pairs:
