@@ -1,3 +1,4 @@
+# logger.py
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -7,7 +8,7 @@ import config
 os.makedirs(os.path.dirname(config.MAIN_LOG_FILE), exist_ok=True)
 
 # Загальний формат логування з назвою програми
-log_format = logging.Formatter(f'%(asctime)s - {config.APP_NAME} - %(name)s - %(levelname)s - %(message)s')
+log_format = logging.Formatter(f'%(asctime)s - {config.APP_NAME} v{config.VERSION} - %(name)s - %(levelname)s - %(message)s')
 
 # Налаштування основного логера
 main_logger = logging.getLogger('main')
@@ -42,6 +43,17 @@ arbitrage_handler = RotatingFileHandler(
 arbitrage_handler.setFormatter(log_format)
 arbitrage_logger.addHandler(arbitrage_handler)
 
+# Налаштування логера для трикутного арбітражу
+triangular_logger = logging.getLogger('triangular')
+triangular_logger.setLevel(getattr(logging, config.LOG_LEVEL))
+triangular_handler = RotatingFileHandler(
+    config.TRIANGULAR_LOG_FILE, 
+    maxBytes=10*1024*1024,  # 10MB
+    backupCount=5
+)
+triangular_handler.setFormatter(log_format)
+triangular_logger.addHandler(triangular_handler)
+
 # Додамо також вивід в консоль для всіх логерів
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(log_format)
@@ -49,3 +61,4 @@ console_handler.setFormatter(log_format)
 main_logger.addHandler(console_handler)
 telegram_logger.addHandler(console_handler)
 arbitrage_logger.addHandler(console_handler)
+triangular_logger.addHandler(console_handler)
