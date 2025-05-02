@@ -43,7 +43,7 @@ async def check_arbitrage_opportunities():
         await arbitrage_finder.initialize()
         
         fee_status = "з урахуванням комісій" if config.INCLUDE_FEES else "без урахування комісій"
-        main_logger.info(f"{config.APP_NAME} успішно запущено ({fee_status}, тип комісії купівлі: {config.BUY_FEE_TYPE}, продажу: {config.SELL_FEE_TYPE})!")
+        main_logger.info(f"{config.APP_NAME} успішно запущено ({fee_status}, типи комісій: купівля - {config.BUY_FEE_TYPE}, продаж - {config.SELL_FEE_TYPE})!")
         
         # Відправляємо додаткову інформацію про конфігурацію
         if config.INCLUDE_FEES:
@@ -51,16 +51,14 @@ async def check_arbitrage_opportunities():
                 f"<b>ℹ️ Конфігурація {config.APP_NAME}</b>\n\n"
                 f"<b>Мінімальний поріг прибутку:</b> {config.MIN_PROFIT_THRESHOLD}%\n"
                 f"<b>Врахування комісій:</b> Увімкнено\n"
-                f"<b>Тип комісій купівлі:</b> {config.BUY_FEE_TYPE}\n"
-                f"<b>Тип комісій продажу:</b> {config.SELL_FEE_TYPE}\n"
-                f"<b>Комісії бірж (купівля):</b>\n"
-                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.BUY_FEE_TYPE]}%\n"
-                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.BUY_FEE_TYPE]}%\n"
-                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.BUY_FEE_TYPE]}%\n"
-                f"<b>Комісії бірж (продаж):</b>\n"
-                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.SELL_FEE_TYPE]}%\n"
-                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.SELL_FEE_TYPE]}%\n"
-                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.SELL_FEE_TYPE]}%\n"
+                f"<b>Типи комісій:</b> Купівля - {config.BUY_FEE_TYPE}, Продаж - {config.SELL_FEE_TYPE}\n"
+                f"<b>Комісії бірж:</b>\n"
+                f"   • Binance: {config.EXCHANGE_FEES['binance'][config.BUY_FEE_TYPE]}% (купівля), "
+                f"{config.EXCHANGE_FEES['binance'][config.SELL_FEE_TYPE]}% (продаж)\n"
+                f"   • KuCoin: {config.EXCHANGE_FEES['kucoin'][config.BUY_FEE_TYPE]}% (купівля), "
+                f"{config.EXCHANGE_FEES['kucoin'][config.SELL_FEE_TYPE]}% (продаж)\n"
+                f"   • Kraken: {config.EXCHANGE_FEES['kraken'][config.BUY_FEE_TYPE]}% (купівля), "
+                f"{config.EXCHANGE_FEES['kraken'][config.SELL_FEE_TYPE]}% (продаж)\n"
                 f"<b>Інтервал перевірки:</b> {config.CHECK_INTERVAL} секунд"
             )
             await telegram_worker.send_message(config_message, parse_mode="HTML")
@@ -86,10 +84,7 @@ async def check_arbitrage_opportunities():
                     "sell_fee_type": config.SELL_FEE_TYPE
                 }
                 
-                # Створюємо директорію для статусу, якщо вона не існує
-                os.makedirs("status", exist_ok=True)
-                
-                with open("status/status.json", "w") as f:
+                with open("status.json", "w") as f:
                     json.dump(status, f)
                 
                 # Чекаємо до наступної перевірки
@@ -148,10 +143,6 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        # Створюємо необхідні директорії
-        os.makedirs("logs", exist_ok=True)
-        os.makedirs("status", exist_ok=True)
-        
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main())
     except KeyboardInterrupt:
