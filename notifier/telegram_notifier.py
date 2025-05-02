@@ -14,9 +14,9 @@ class TelegramNotifier(BaseNotifier):
     """
     Клас для надсилання повідомлень у Telegram
     """
-    def __init__(self, bot_token: str, chat_id: str, queue: asyncio.Queue):
+    def __init__(self, bot_token: str, default_chat_id: str, queue: asyncio.Queue):
         self.bot_token = bot_token
-        self.chat_id = chat_id
+        self.default_chat_id = default_chat_id
         self.queue = queue
         self.session: Optional[aiohttp.ClientSession] = None
         self.last_sent_time = 0  # Час останньої відправки повідомлення
@@ -31,7 +31,7 @@ class TelegramNotifier(BaseNotifier):
         Ініціалізація HTTP-сесії
         """
         self.session = aiohttp.ClientSession()
-        logger.info("HTTP-сесію для Telegram API ініціалізовано")
+        logger.info("HTTP-сесію ініціалізовано")
         
     async def close(self):
         """
@@ -40,22 +40,28 @@ class TelegramNotifier(BaseNotifier):
         if self.session:
             await self.session.close()
             self.session = None
-            logger.info("HTTP-сесію для Telegram API закрито")
+            logger.info("HTTP-сесію закрито")
             
-    async def send_message(self, message: str) -> bool:
+    async def send_message(self, message: str, chat_id: Optional[str] = None) -> bool:
         """
         Ставить повідомлення в чергу на відправку
         """
-        await self.queue.put({"message": message, "parse_mode": None})
-        logger.debug(f"Повідомлення додано в чергу. Поточна довжина черги: {self.queue.qsize()}")
+        if chat_id is None:
+            chat_id = self.default_chat_id
+            
+        await self.queue.put({"message": message, "parse_mode": None, "chat_id": chat_id})
+        logger.debug(f"Повідомлення для {chat_id} додано в чергу. Поточна довжина черги: {self.queue.qsize()}")
         return True
         
-    async def send_formatted_message(self, message: str, parse_mode: str = "HTML") -> bool:
+    async def send_formatted_message(self, message: str, chat_id: Optional[str] = None, parse_mode: str = "HTML") -> bool:
         """
         Ставить форматоване повідомлення в чергу на відправку
         """
-        await self.queue.put({"message": message, "parse_mode": parse_mode})
-        logger.debug(f"Форматоване повідомлення додано в чергу. Поточна довжина черги: {self.queue.qsize()}")
+        if chat_id is None:
+            chat_id = self.default_chat_id
+            
+        await self.queue.put({"message": message, "parse_mode": parse_mode, "chat_id": chat_id})
+        logger.debug(f"Форматоване повідомлення для {chat_id} додано в чергу. Поточна довжина черги: {self.queue.qsize()}")
         return True
         
     async def process_queue(self):
@@ -81,6 +87,9 @@ class TelegramNotifier(BaseNotifier):
                     logger.debug(f"Обмеження швидкості: очікування {delay:.2f} секунд")
                     await asyncio.sleep(delay)
                 
+                # Отримуємо ID чату (якщо не вказано, використовуємо ID за замовчуванням)
+                chat_id = message_data.get("chat_id", self.default_chat_id)
+                
                 # Відправляємо повідомлення з повторними спробами
                 start_time = time.time()
                 success = False
@@ -89,6 +98,7 @@ class TelegramNotifier(BaseNotifier):
                     try:
                         success = await self._send_telegram_message(
                             message_data["message"], 
+                            chat_id,
                             message_data.get("parse_mode")
                         )
                         
@@ -96,18 +106,18 @@ class TelegramNotifier(BaseNotifier):
                             self.messages_sent += 1
                             self.last_sent_time = time.time()
                             send_time = time.time() - start_time
-                            logger.info(f"Повідомлення успішно відправлено (спроба {attempt+1}, час: {send_time:.2f}с)")
+                            logger.info(f"Повідомлення для {chat_id} успішно відправлено (спроба {attempt+1}, час: {send_time:.2f}с)")
                             break
                         else:
-                            logger.warning(f"Не вдалося відправити повідомлення (спроба {attempt+1})")
+                            logger.warning(f"Не вдалося відправити повідомлення для {chat_id} (спроба {attempt+1})")
                             await asyncio.sleep(self.retry_delay * (attempt + 1))
                     except Exception as e:
-                        logger.error(f"Помилка при відправці повідомлення (спроба {attempt+1}): {e}")
+                        logger.error(f"Помилка при відправці повідомлення для {chat_id} (спроба {attempt+1}): {e}")
                         await asyncio.sleep(self.retry_delay * (attempt + 1))
                 
                 if not success:
                     self.messages_failed += 1
-                    logger.error(f"Всі спроби відправити повідомлення вичерпано. Повідомлення не відправлено.")
+                    logger.error(f"Всі спроби відправити повідомлення для {chat_id} вичерпано. Повідомлення не відправлено.")
                     
                 # Позначаємо задачу як виконану
                 self.queue.task_done()
@@ -123,15 +133,12 @@ class TelegramNotifier(BaseNotifier):
                 logger.error(f"Помилка при обробці черги Telegram: {e}")
                 
                 # Позначаємо задачу як виконану, навіть якщо сталася помилка
-                try:
-                    self.queue.task_done()
-                except Exception as task_error:
-                    logger.error(f"Помилка при позначенні завдання як виконаного: {task_error}")
+                self.queue.task_done()
                 
                 # Невелика затримка перед наступною спробою
                 await asyncio.sleep(1)
     
-    async def _send_telegram_message(self, message: str, parse_mode: Optional[str] = None) -> bool:
+    async def _send_telegram_message(self, message: str, chat_id: str, parse_mode: Optional[str] = None) -> bool:
         """
         Безпосередньо відправляє повідомлення в Telegram
         """
@@ -141,7 +148,7 @@ class TelegramNotifier(BaseNotifier):
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
         
         params: Dict[str, Any] = {
-            "chat_id": self.chat_id,
+            "chat_id": chat_id,
             "text": message
         }
         
@@ -151,7 +158,7 @@ class TelegramNotifier(BaseNotifier):
         try:
             start_time = time.time()
             
-            async with self.session.post(url, json=params, timeout=10) as response:
+            async with self.session.post(url, json=params) as response:
                 response_time = time.time() - start_time
                 
                 if response.status == 200:
@@ -159,12 +166,9 @@ class TelegramNotifier(BaseNotifier):
                     return True
                 else:
                     response_text = await response.text()
-                    logger.error(f"Помилка при відправці повідомлення: {response.status} - {response_text}")
+                    logger.error(f"Помилка при відправці повідомлення для {chat_id}: {response.status} - {response_text}")
                     return False
                     
-        except asyncio.TimeoutError:
-            logger.error("Timeout при відправці повідомлення до Telegram API")
-            return False
         except Exception as e:
-            logger.error(f"Виняток при відправці повідомлення: {e}")
+            logger.error(f"Виняток при відправці повідомлення для {chat_id}: {e}")
             return False
