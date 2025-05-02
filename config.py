@@ -1,3 +1,4 @@
+# config.py
 import os
 from dotenv import load_dotenv
 
@@ -19,130 +20,76 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # Arbitrage settings
 MIN_PROFIT_THRESHOLD = float(os.getenv("MIN_PROFIT_THRESHOLD", "0.5"))  # мінімальний % прибутку
-MIN_NET_PROFIT_THRESHOLD = float(os.getenv("MIN_NET_PROFIT_THRESHOLD", "0.3"))  # мінімальний % чистого прибутку після комісій
+CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))  # інтервал перевірки в секундах
+
+# Комісії бірж відповідно до реальних тарифів
+EXCHANGE_FEES = {
+    'binance': {
+        'maker': float(os.getenv("BINANCE_MAKER_FEE", "0.1")),  # 0.1%
+        'taker': float(os.getenv("BINANCE_TAKER_FEE", "0.1"))   # 0.1%
+    },
+    'kucoin': {
+        'maker': float(os.getenv("KUCOIN_MAKER_FEE", "0.1")),   # 0.1%
+        'taker': float(os.getenv("KUCOIN_TAKER_FEE", "0.1"))    # 0.1%
+    },
+    'kraken': {
+        'maker': float(os.getenv("KRAKEN_MAKER_FEE", "0.25")),  # 0.25%
+        'taker': float(os.getenv("KRAKEN_TAKER_FEE", "0.40"))   # 0.40%
+    }
+}
+
+# Використовувати maker чи taker комісії для розрахунків
+# Окремо для купівлі і продажу
 BUY_FEE_TYPE = os.getenv("BUY_FEE_TYPE", "taker").lower()  # Тип комісії для купівлі
 SELL_FEE_TYPE = os.getenv("SELL_FEE_TYPE", "taker").lower()  # Тип комісії для продажу
 
-# Інтервали перевірки
-CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))  # звичайний інтервал перевірки в секундах
-PEAK_CHECK_INTERVAL = int(os.getenv("PEAK_CHECK_INTERVAL", "30"))  # інтервал під час пікових годин
+# Враховувати комісії при розрахунку прибутку
+INCLUDE_FEES = os.getenv("INCLUDE_FEES", "True").lower() == "true"
 
-# Оптимальні часові вікна для арбітражу (UTC)
-PEAK_HOURS = [
-    (13, 16),  # Перетин американської та європейської сесій
-    (1, 4),    # Азійська торгова сесія
-    (12, 13),  # Перехідний період 1
-    (0, 1)     # Перехідний період 2
-]
-
-# Розширений список криптовалют для арбітражу
+# Supported cryptocurrency pairs
 PAIRS = [
-    # Основні пари
     "BTC/USDT", 
     "ETH/USDT", 
     "XRP/USDT",
     "BNB/USDT",
     "SOL/USDT",
-    # Додаткові пари з високим потенціалом арбітражу
-    "TRX/USDT",  # Найнижчі комісії
-    "ADA/USDT",  # Хороші різниці KuCoin-Kraken
-    "HBAR/USDT", # Високі різниці KuCoin-Binance
-    "NEAR/USDT", # Високі різниці KuCoin-Kraken
-    "ATOM/USDT", # Хороші різниці Binance-Kraken
-    "MATIC/USDT" # Корисно для трикутного арбітражу
+    # Додаємо пари з аналізу ринку, які були визначені як найбільш перспективні в документації
+    "TRX/USDT",
+    "HBAR/USDT",
+    "NEAR/USDT",
+    "ATOM/USDT",
+    "ADA/USDT",
+    "AVAX/USDT"
 ]
-
-# Налаштування розміру ордерів
-ORDER_SIZES = {
-    "BTC/USDT": 0.01,    # ~500 USD
-    "ETH/USDT": 0.1,     # ~300 USD
-    "DEFAULT": 100       # 100 USDT для інших пар
-}
-
-# Налаштування мереж для транзакцій
-NETWORK_PREFERENCES = {
-    "USDT": ["TRC20", "BEP20", "SOL", "ERC20"],  # В порядку пріоритету
-    "USDC": ["BEP20", "SOL", "TRC20", "ERC20"],
-    "DEFAULT": "TRC20"  # За замовчуванням
-}
-
-# Налаштування трикутного арбітражу
-TRIANGULAR_PATHS = [
-    ["USDT", "MATIC", "BTC", "USDT"],
-    ["USDT", "XRP", "BTC", "USDT"],
-    ["USDT", "SOL", "ETH", "USDT"],
-    ["USDT", "TRX", "BTC", "USDT"]
-]
-
-# Налаштування комісій
-EXCHANGE_FEES = {
-    "binance": {
-        "maker": float(os.getenv("BINANCE_MAKER_FEE", "0.1")),
-        "taker": float(os.getenv("BINANCE_TAKER_FEE", "0.1")),
-        "withdrawal": {  # Комісії за виведення
-            "BTC": 0.0005,
-            "ETH": 0.005,
-            "XRP": 0.2,
-            "TRX": 1,
-            "SOL": 0.01,
-            "USDT": 1,
-            "DEFAULT": 0.1
-        },
-        "discount_token": "BNB",
-        "discount_percent": float(os.getenv("BINANCE_DISCOUNT_PERCENT", "25"))
-    },
-    "kucoin": {
-        "maker": float(os.getenv("KUCOIN_MAKER_FEE", "0.1")),
-        "taker": float(os.getenv("KUCOIN_TAKER_FEE", "0.1")),
-        "withdrawal": {
-            "BTC": 0.0005,
-            "ETH": 0.004,
-            "XRP": 1,
-            "TRX": 5,
-            "SOL": 0.01,
-            "USDT": 1,
-            "DEFAULT": 0.1
-        },
-        "discount_token": "KCS",
-        "discount_percent": float(os.getenv("KUCOIN_DISCOUNT_PERCENT", "20"))
-    },
-    "kraken": {
-        "maker": float(os.getenv("KRAKEN_MAKER_FEE", "0.16")),
-        "taker": float(os.getenv("KRAKEN_TAKER_FEE", "0.26")),
-        "withdrawal": {
-            "BTC": 0.0005,
-            "ETH": 0.005,
-            "XRP": 0.02,
-            "TRX": 1,
-            "SOL": 0.01,
-            "USDT": 2.5,
-            "DEFAULT": 0.1
-        },
-        "discount_token": None,
-        "discount_percent": 0
-    }
-}
 
 # Logging settings
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 MAIN_LOG_FILE = "logs/main.log"
 TELEGRAM_LOG_FILE = "logs/telegram.log"
 ARBITRAGE_LOG_FILE = "logs/arbitrage.log"
-TRIANGULAR_LOG_FILE = "logs/triangular.log"
 
 # Exchange API settings
-REQUEST_TIMEOUT = 10  # seconds
-RATE_LIMIT_RETRY = True
-
-# Web-server settings
-WEB_SERVER_ENABLED = bool(int(os.getenv("WEB_SERVER_ENABLED", "0")))
-WEB_SERVER_PORT = int(os.getenv("WEB_SERVER_PORT", "8080")))
-WEB_SERVER_HOST = os.getenv("WEB_SERVER_HOST", "localhost")
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "10"))  # seconds
+RATE_LIMIT_RETRY = os.getenv("RATE_LIMIT_RETRY", "True").lower() == "true"
 
 # App settings
 APP_NAME = "Bitmonbot"
 START_MESSAGE = f"✅ {APP_NAME} стартував!"
-VERSION = "0.3.0"
 
-# Налаштування прослизання
-MAX_ACCEPTABLE_SLIPPAGE = float(os.getenv("MAX_ACCEPTABLE_SLIPPAGE", "1.0"))  # максимальне прийнятне прослизання у відсотках
+# Web server settings
+WEB_SERVER_ENABLED = os.getenv("WEB_SERVER_ENABLED", "False").lower() == "true"
+WEB_SERVER_HOST = os.getenv("WEB_SERVER_HOST", "localhost")
+WEB_SERVER_PORT = int(os.getenv("WEB_SERVER_PORT", "8080"))
+
+# HTTP Session settings
+HTTP_SESSION_TIMEOUT = int(os.getenv("HTTP_SESSION_TIMEOUT", "30"))  # seconds
+HTTP_SESSION_RETRY_COUNT = int(os.getenv("HTTP_SESSION_RETRY_COUNT", "3"))
+HTTP_SESSION_RETRY_DELAY = int(os.getenv("HTTP_SESSION_RETRY_DELAY", "2"))  # seconds
+
+# Performance Settings
+TICKERS_BATCH_SIZE = int(os.getenv("TICKERS_BATCH_SIZE", "5"))  # How many tickers to process in one batch
+MAX_CONCURRENT_REQUESTS = int(os.getenv("MAX_CONCURRENT_REQUESTS", "3"))  # Max concurrent API requests
+
+# Status Updates
+SAVE_STATUS_INTERVAL = int(os.getenv("SAVE_STATUS_INTERVAL", "300"))  # seconds (5 min)
+TELEGRAM_STATUS_INTERVAL = int(os.getenv("TELEGRAM_STATUS_INTERVAL", "3600"))  # seconds (1 hour)
