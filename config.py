@@ -51,37 +51,38 @@ SELL_FEE_TYPE = os.getenv("SELL_FEE_TYPE", "taker").lower()  # Тип коміс
 INCLUDE_FEES = os.getenv("INCLUDE_FEES", "True").lower() == "true"
 
 # Supported cryptocurrency pairs
-# Основні пари, які підтримуються системою
-DEFAULT_PAIRS = [
+# Список всіх підтримуваних пар
+ALL_PAIRS = [
     "BTC/USDT", 
     "ETH/USDT", 
     "XRP/USDT",
     "BNB/USDT",
-    "SOL/USDT"
-]
-
-# Розширений список пар для преміум-користувачів
-PREMIUM_PAIRS = DEFAULT_PAIRS + [
+    "SOL/USDT",
     "ADA/USDT",
     "DOT/USDT",
     "DOGE/USDT",
     "AVAX/USDT",
-    "MATIC/USDT"
-]
-
-# Повний список підтримуваних пар
-ALL_PAIRS = PREMIUM_PAIRS + [
+    "MATIC/USDT",
     "LTC/USDT",
     "UNI/USDT",
     "LINK/USDT",
     "ATOM/USDT",
-    "TRX/USDT",
-    "ETC/USDT",
     "XLM/USDT",
-    "VET/USDT",
-    "THETA/USDT",
     "FIL/USDT"
 ]
+
+# Specifičnі pary dlja kožnoji birži
+EXCHANGE_SPECIFIC_PAIRS = {
+    'binance': ALL_PAIRS,
+    'kucoin': ALL_PAIRS,
+    'kraken': [
+        "BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT",
+        "ADA/USDT", "DOT/USDT", "DOGE/USDT", "AVAX/USDT", "MATIC/USDT",
+        "LTC/USDT", "UNI/USDT", "LINK/USDT", "ATOM/USDT",
+        "XLM/USDT", "FIL/USDT"
+        # Прибрано: "TRX/USDT", "HBAR/USDT", "NEAR/USDT", "BNB/USDT", "VET/USDT", "THETA/USDT"
+    ]
+}
 
 # Список усіх підтримуваних пар для використання в системі
 PAIRS = ALL_PAIRS
@@ -99,39 +100,21 @@ RATE_LIMIT_RETRY = True
 
 # App settings
 APP_NAME = "Bitmonbot"
+VERSION = "1.0.0"
 START_MESSAGE = f"✅ {APP_NAME} стартував!"
 
 # Налаштування для роботи з користувачами
 ADMIN_USER_IDS = os.getenv("ADMIN_USER_IDS", "").split(",")  # ID адміністраторів через кому
 DEFAULT_MIN_PROFIT = 0.8  # Мінімальний поріг прибутку для нових користувачів
-USER_SUBSCRIPTION_TYPES = {
-    "free": {
-        "max_pairs": 3,
-        "pairs_list": DEFAULT_PAIRS,
-        "notification_delay": 60,  # секунд
-        "description": "Безкоштовна підписка (до 3 пар, затримка 60 секунд)"
-    },
-    "premium": {
-        "max_pairs": 10,
-        "pairs_list": PREMIUM_PAIRS,
-        "notification_delay": 0,  # без затримки
-        "description": "Преміум підписка (до 10 пар, без затримки)"
-    },
-    "admin": {
-        "max_pairs": -1,  # без обмежень
-        "pairs_list": ALL_PAIRS,
-        "notification_delay": 0,
-        "description": "Адміністраторський доступ (без обмежень)"
-    }
-}
 
 # Команди бота
 BOT_COMMANDS = {
     "/start": "Почати роботу з ботом",
     "/help": "Показати довідку",
-    "/status": "Перевірити статус підписки",
-    "/subscribe": "Підписатися на повідомлення",
-    "/unsubscribe": "Відписатися від повідомлень",
+    "/status": "Перевірити статус доступу",
+    "/approve": "Схвалити користувача (тільки для адміністраторів)",
+    "/block": "Заблокувати користувача (тільки для адміністраторів)",
+    "/users": "Список користувачів (тільки для адміністраторів)",
     "/pairs": "Керування валютними парами",
     "/threshold": "Встановити мінімальний поріг прибутку",
     "/settings": "Налаштування користувача"
