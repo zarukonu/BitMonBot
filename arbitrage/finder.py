@@ -50,37 +50,37 @@ class ArbitrageFinder:
                 logger.error(f"Помилка при закритті з'єднання з біржею {name}: {e}")
     
     async def get_all_tickers(self, symbols: List[str] = None) -> Dict[str, Dict[str, Dict]]:
-        """
-        Отримання тікерів для всіх бірж з урахуванням підтримуваних пар
-        """
-        tasks = []
+    """
+    Отримання тікерів для всіх бірж з урахуванням підтримуваних пар
+    """
+    tasks = []
+    
+    for name, exchange in self.exchanges.items():
+        # Визначаємо пари для конкретної біржі
+        exchange_symbols = symbols
         
-        for name, exchange in self.exchanges.items():
-            # Визначаємо пари для конкретної біржі
-            exchange_symbols = symbols
-            
-            # Якщо є специфічні пари для цієї біржі, використовуємо їх
-            if hasattr(config, 'EXCHANGE_SPECIFIC_PAIRS') and name.lower() in config.EXCHANGE_SPECIFIC_PAIRS:
-                # Якщо symbols не вказано, використовуємо всі доступні для біржі
-                if symbols is None:
-                    exchange_symbols = config.EXCHANGE_SPECIFIC_PAIRS[name.lower()]
-                else:
-                    # Інакше - перетин вказаних пар і підтримуваних біржею
-                    exchange_symbols = [s for s in symbols if s in config.EXCHANGE_SPECIFIC_PAIRS[name.lower()]]
-                    
-            tasks.append(self._get_exchange_tickers(name, exchange, exchange_symbols))
-        
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        all_tickers = {}
-        for i, name in enumerate(self.exchanges.keys()):
-            if isinstance(results[i], Exception):
-                logger.error(f"Помилка при отриманні тікерів для {name}: {results[i]}")
-                all_tickers[name] = {}
+        # Якщо є специфічні пари для цієї біржі, використовуємо їх
+        if name.lower() in config.EXCHANGE_SPECIFIC_PAIRS:
+            # Якщо symbols не вказано, використовуємо всі доступні для біржі
+            if symbols is None:
+                exchange_symbols = config.EXCHANGE_SPECIFIC_PAIRS[name.lower()]
             else:
-                all_tickers[name] = results[i]
-        
-        return all_tickers
+                # Інакше - перетин вказаних пар і підтримуваних біржею
+                exchange_symbols = [s for s in symbols if s in config.EXCHANGE_SPECIFIC_PAIRS[name.lower()]]
+                
+        tasks.append(self._get_exchange_tickers(name, exchange, exchange_symbols))
+    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    all_tickers = {}
+    for i, name in enumerate(self.exchanges.keys()):
+        if isinstance(results[i], Exception):
+            logger.error(f"Помилка при отриманні тікерів для {name}: {results[i]}")
+            all_tickers[name] = {}
+        else:
+            all_tickers[name] = results[i]
+    
+    return all_tickers
     
     async def _get_exchange_tickers(self, exchange_name: str, exchange: BaseExchange, symbols: List[str]) -> Dict[str, Dict]:
         """
