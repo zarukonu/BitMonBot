@@ -1,4 +1,4 @@
-# user_manager.py
+# user_manager.py (повний файл)
 import logging
 import json
 from typing import Dict, List, Optional, Any
@@ -159,4 +159,73 @@ class UserManager:
         # Перевіряємо, що всі пари підтримуються
         valid_pairs = [pair for pair in pairs if pair in config.ALL_PAIRS]
         
-        if len(valid_pairs) != len(pairs)
+        if len(valid_pairs) != len(pairs):
+            users_logger.warning(f"Деякі пари для користувача {user_id} не підтримуються")
+            
+        self.users[user_id]["pairs"] = valid_pairs
+        self.update_user_activity(user_id)
+        self.save_users()
+        
+        users_logger.info(f"Оновлено список пар для користувача {user_id}: {len(valid_pairs)} пар")
+        return True
+    
+    def set_user_min_profit(self, user_id: str, min_profit: float) -> bool:
+        """
+        Встановлює мінімальний поріг прибутку для користувача
+        """
+        if user_id not in self.users:
+            return False
+            
+        self.users[user_id]["min_profit"] = min_profit
+        self.update_user_activity(user_id)
+        self.save_users()
+        
+        users_logger.info(f"Встановлено мінімальний поріг прибутку {min_profit}% для користувача {user_id}")
+        return True
+        
+    def increment_notifications(self, user_id: str) -> bool:
+        """
+        Збільшує лічильник повідомлень для користувача
+        """
+        if user_id not in self.users:
+            return False
+            
+        if "notifications_count" not in self.users[user_id]:
+            self.users[user_id]["notifications_count"] = 0
+            
+        self.users[user_id]["notifications_count"] += 1
+        
+        # Зберігаємо тільки кожні 10 нотифікацій, щоб уникнути частого запису на диск
+        if self.users[user_id]["notifications_count"] % 10 == 0:
+            self.save_users()
+            users_logger.info(f"Користувач {user_id} отримав {self.users[user_id]['notifications_count']} повідомлень")
+            
+        return True
+    
+    def get_admin_users(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Повертає словник адміністраторів
+        """
+        return {uid: data for uid, data in self.users.items() 
+                if data.get("is_admin", False)}
+    
+    def get_active_approved_users(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Повертає словник активних схвалених користувачів
+        """
+        return {uid: data for uid, data in self.users.items() 
+                if data.get("active", False) and data.get("is_approved", False)}
+    
+    def get_pending_users(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Повертає словник користувачів, які очікують схвалення
+        """
+        return {uid: data for uid, data in self.users.items() 
+                if data.get("active", False) and not data.get("is_approved", False) 
+                and not data.get("is_admin", False)}
+    
+    def get_all_users(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Повертає словник всіх користувачів
+        """
+        return self.users.copy()
