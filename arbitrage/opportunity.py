@@ -1,14 +1,14 @@
 # arbitrage/opportunity.py
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 @dataclass
 class ArbitrageOpportunity:
     """
     Клас для представлення арбітражної можливості
     """
-    symbol: str  # Валютна пара
+    symbol: str  # Валютна пара або шлях
     buy_exchange: str  # Біржа для купівлі
     sell_exchange: str  # Біржа для продажу
     buy_price: float  # Ціна купівлі
@@ -20,6 +20,9 @@ class ArbitrageOpportunity:
     timestamp: datetime = datetime.now()  # Час виявлення
     buy_fee_type: str = ""  # Тип комісії для купівлі (maker/taker)
     sell_fee_type: str = ""  # Тип комісії для продажу (maker/taker)
+    opportunity_type: str = "cross"  # Тип можливості: "cross" (крос-біржовий) або "triangular" (трикутний)
+    path: Optional[List[str]] = None  # Шлях для трикутного арбітражу
+    estimated_fees: float = 0.0  # Оцінка загальних комісій
     
     def __post_init__(self):
         """
@@ -44,9 +47,13 @@ class ArbitrageOpportunity:
             'buy_price': self.buy_price,
             'sell_price': self.sell_price,
             'profit_percent': self.profit_percent,
-            'timestamp': self.timestamp.isoformat()
+            'timestamp': self.timestamp.isoformat(),
+            'opportunity_type': self.opportunity_type
         }
         
+        if self.path:
+            result['path'] = self.path
+            
         if self.buy_fee > 0 or self.sell_fee > 0:
             result.update({
                 'buy_fee': self.buy_fee,
@@ -78,15 +85,38 @@ class ArbitrageOpportunity:
             emoji = "🔍"  # Низький прибуток
             
         # Додаємо емодзі криптовалюти, якщо вони доступні
-        coin_symbol = self.symbol.split('/')[0]
-        coin_emoji = self._get_coin_emoji(coin_symbol)
-        
-        message = (
-            f"<b>{emoji} {coin_emoji} Арбітражна можливість ({self.profit_percent:.2f}%)</b>\n\n"
-            f"<b>Пара:</b> {self.symbol}\n"
-            f"<b>Купити на:</b> {self.buy_exchange} за {self.buy_price:.8f}\n"
-            f"<b>Продати на:</b> {self.sell_exchange} за {self.sell_price:.8f}\n"
-        )
+        if self.opportunity_type == "cross":
+            coin_symbol = self.symbol.split('/')[0]
+            coin_emoji = self._get_coin_emoji(coin_symbol)
+            
+            message = (
+                f"<b>{emoji} {coin_emoji} Крос-біржова можливість ({self.profit_percent:.2f}%)</b>\n\n"
+                f"<b>Пара:</b> {self.symbol}\n"
+                f"<b>Купити на:</b> {self.buy_exchange} за {self.buy_price:.8f}\n"
+                f"<b>Продати на:</b> {self.sell_exchange} за {self.sell_price:.8f}\n"
+            )
+        else:  # triangular
+            # Для трикутного арбітражу використовуємо емодзі першої валюти в шляху
+            if self.path and len(self.path) > 0:
+                coin_symbol = self.path[0]
+                coin_emoji = self._get_coin_emoji(coin_symbol)
+                path_str = " → ".join(self.path)
+                
+                message = (
+                    f"<b>{emoji} {coin_emoji} Трикутна можливість ({self.profit_percent:.2f}%)</b>\n\n"
+                    f"<b>Біржа:</b> {self.buy_exchange}\n"
+                    f"<b>Шлях:</b> {path_str}\n"
+                    f"<b>Початкова ціна:</b> {self.buy_price:.8f}\n"
+                    f"<b>Кінцева ціна:</b> {self.sell_price:.8f}\n"
+                )
+            else:
+                coin_emoji = "🪙"
+                message = (
+                    f"<b>{emoji} {coin_emoji} Трикутна можливість ({self.profit_percent:.2f}%)</b>\n\n"
+                    f"<b>Біржа:</b> {self.buy_exchange}\n"
+                    f"<b>Початкова ціна:</b> {self.buy_price:.8f}\n"
+                    f"<b>Кінцева ціна:</b> {self.sell_price:.8f}\n"
+                )
         
         # Додаємо інформацію про комісії та чистий прибуток, якщо вони доступні
         if self.buy_fee > 0 or self.sell_fee > 0:
@@ -118,7 +148,9 @@ class ArbitrageOpportunity:
             "NEAR": "🔺",
             "ATOM": "⚛️",
             "ADA": "🔷",
-            "AVAX": "🔺"
+            "AVAX": "🔺",
+            "USDT": "💵",
+            "USDC": "💲"
         }
         
         return coin_emojis.get(coin_symbol, "🪙")  # Якщо емодзі не знайдено, повертаємо загальний емодзі монети
