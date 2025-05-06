@@ -24,21 +24,45 @@ USERS_FILE = os.getenv("USERS_FILE", "users.json")
 
 # Arbitrage settings
 MIN_PROFIT_THRESHOLD = float(os.getenv("MIN_PROFIT_THRESHOLD", "0.5"))  # мінімальний % прибутку
+MIN_NET_PROFIT_THRESHOLD = float(os.getenv("MIN_NET_PROFIT_THRESHOLD", "0.3"))  # мінімальний чистий % прибутку
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))  # інтервал перевірки в секундах
+PEAK_CHECK_INTERVAL = int(os.getenv("PEAK_CHECK_INTERVAL", "30"))  # інтервал в пікові години
 
 # Комісії бірж відповідно до реальних тарифів
 EXCHANGE_FEES = {
     'binance': {
         'maker': float(os.getenv("BINANCE_MAKER_FEE", "0.1")),  # 0.1%
-        'taker': float(os.getenv("BINANCE_TAKER_FEE", "0.1"))   # 0.1%
+        'taker': float(os.getenv("BINANCE_TAKER_FEE", "0.1")),  # 0.1%
+        'discount_token': 'BNB',
+        'discount_percent': float(os.getenv("BINANCE_DISCOUNT_PERCENT", "25")),  # 25% знижка з BNB
+        'withdrawal': {
+            'DEFAULT': 0.0005,
+            'BTC': 0.0001,
+            'ETH': 0.005,
+            'USDT': 1.0
+        }
     },
     'kucoin': {
         'maker': float(os.getenv("KUCOIN_MAKER_FEE", "0.1")),   # 0.1%
-        'taker': float(os.getenv("KUCOIN_TAKER_FEE", "0.1"))    # 0.1%
+        'taker': float(os.getenv("KUCOIN_TAKER_FEE", "0.1")),   # 0.1%
+        'discount_token': 'KCS',
+        'discount_percent': float(os.getenv("KUCOIN_DISCOUNT_PERCENT", "20")),  # 20% знижка з KCS
+        'withdrawal': {
+            'DEFAULT': 0.0005,
+            'BTC': 0.0001,
+            'ETH': 0.01,
+            'USDT': 2.0
+        }
     },
     'kraken': {
-        'maker': float(os.getenv("KRAKEN_MAKER_FEE", "0.25")),  # 0.25%
-        'taker': float(os.getenv("KRAKEN_TAKER_FEE", "0.40"))   # 0.40%
+        'maker': float(os.getenv("KRAKEN_MAKER_FEE", "0.16")),  # 0.16%
+        'taker': float(os.getenv("KRAKEN_TAKER_FEE", "0.26")),  # 0.26%
+        'withdrawal': {
+            'DEFAULT': 0.001,
+            'BTC': 0.0005,
+            'ETH': 0.005,
+            'USDT': 5.0
+        }
     }
 }
 
@@ -80,12 +104,22 @@ EXCHANGE_SPECIFIC_PAIRS = {
         "ADA/USDT", "DOT/USDT", "DOGE/USDT", "AVAX/USDT", "MATIC/USDT",
         "LTC/USDT", "UNI/USDT", "LINK/USDT", "ATOM/USDT",
         "XLM/USDT", "FIL/USDT"
-        # Прибрано: "TRX/USDT", "HBAR/USDT", "NEAR/USDT", "BNB/USDT", "VET/USDT", "THETA/USDT"
     ]
 }
 
 # Список усіх підтримуваних пар для використання в системі
 PAIRS = ALL_PAIRS
+
+# Трикутні шляхи для арбітражу
+TRIANGULAR_PATHS = [
+    ["USDT", "BTC", "ETH", "USDT"],
+    ["USDT", "BTC", "BNB", "USDT"],
+    ["USDT", "ETH", "BNB", "USDT"],
+    ["USDT", "BTC", "ADA", "USDT"],
+    ["USDT", "BTC", "DOT", "USDT"],
+    ["USDT", "BTC", "LINK", "USDT"],
+    ["USDT", "ETH", "LINK", "USDT"]
+]
 
 # Logging settings
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
@@ -97,6 +131,11 @@ USERS_LOG_FILE = "logs/users.log"
 # Exchange API settings
 REQUEST_TIMEOUT = 10  # seconds
 RATE_LIMIT_RETRY = True
+
+# Web server settings
+WEB_SERVER_ENABLED = os.getenv("WEB_SERVER_ENABLED", "1") == "1"
+WEB_SERVER_HOST = os.getenv("WEB_SERVER_HOST", "localhost")
+WEB_SERVER_PORT = int(os.getenv("WEB_SERVER_PORT", "8080"))
 
 # App settings
 APP_NAME = "Bitmonbot"
