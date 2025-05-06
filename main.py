@@ -58,7 +58,7 @@ async def check_arbitrage_opportunities():
             f"• Інтервал перевірки: {config.CHECK_INTERVAL} секунд"
         )
         
-        # Відправляємо повідомлення тільки адміністраторам
+        # Відправляємо повідомлення адміністраторам
         await telegram_worker.broadcast_message(admin_message, parse_mode="HTML", only_admins=True)
         
         # Основний цикл роботи
@@ -67,11 +67,11 @@ async def check_arbitrage_opportunities():
                 # Шукаємо арбітражні можливості
                 opportunities = await arbitrage_finder.find_opportunities()
                 
-                # Якщо є можливості, відправляємо повідомлення всім активним користувачам
+                # Якщо є можливості, відправляємо повідомлення всім активним схваленим користувачам
                 for opp in opportunities:
                     message = opp.to_message()
                     
-                    # Надсилаємо повідомлення користувачам за підпискою
+                    # Надсилаємо повідомлення користувачам
                     await telegram_worker.notify_about_opportunity(message)
                 
                 # Зберігаємо статус у JSON-файл
@@ -82,8 +82,17 @@ async def check_arbitrage_opportunities():
                     "include_fees": config.INCLUDE_FEES,
                     "buy_fee_type": config.BUY_FEE_TYPE,
                     "sell_fee_type": config.SELL_FEE_TYPE,
-                    "active_users": len(telegram_worker.user_manager.get_active_users())
+                    "active_users": len(telegram_worker.user_manager.get_active_approved_users())
                 }
+                
+                # Якщо є можливості, додаємо їх у статус
+                if opportunities:
+                    status["top_opportunities"] = [opp.to_dict() for opp in opportunities[:5]]
+                
+                # Створюємо директорію для статусу, якщо вона не існує
+                status_dir = os.path.dirname("status.json")
+                if status_dir and not os.path.exists(status_dir):
+                    os.makedirs(status_dir)
                 
                 with open("status.json", "w") as f:
                     json.dump(status, f, indent=4)
