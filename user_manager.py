@@ -1,4 +1,4 @@
-# user_manager.py (повний файл)
+# user_manager.py
 import logging
 import json
 from typing import Dict, List, Optional, Any
