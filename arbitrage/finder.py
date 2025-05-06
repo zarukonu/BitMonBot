@@ -1,4 +1,4 @@
-# arbitrage/finder.py
+# arbitrage/finder.py - виправлена версія
 import logging
 from typing import Dict, List, Tuple, Optional
 import asyncio
@@ -111,13 +111,17 @@ class ArbitrageFinder:
             # Збираємо ціни з усіх бірж для поточної пари
             symbol_prices = {}
             for exchange_name, tickers in all_tickers.items():
-                if symbol in tickers:
+                if symbol in tickers and tickers[symbol]:
                     # Якщо є і bid (ціна купівлі), і ask (ціна продажу)
                     if 'bid' in tickers[symbol] and 'ask' in tickers[symbol]:
-                        symbol_prices[exchange_name] = {
-                            'bid': tickers[symbol]['bid'],  # Максимальна ціна, за якою готові купити
-                            'ask': tickers[symbol]['ask']   # Мінімальна ціна, за якою готові продати
-                        }
+                        # Додаткова перевірка на None
+                        bid = tickers[symbol]['bid']
+                        ask = tickers[symbol]['ask']
+                        if bid is not None and ask is not None:
+                            symbol_prices[exchange_name] = {
+                                'bid': bid,  # Максимальна ціна, за якою готові купити
+                                'ask': ask   # Мінімальна ціна, за якою готові продати
+                            }
             
             # Якщо маємо ціни з принаймні двох бірж
             if len(symbol_prices) >= 2:
@@ -135,9 +139,9 @@ class ArbitrageFinder:
                             # Ціна, за якою можемо продати на другій біржі
                             sell_price = symbol_prices[sell_exchange]['bid']
                             
-                            # Обчислюємо потенційний прибуток
-                            if buy_price > 0:  # Уникаємо ділення на нуль
-                                # Розрахунок "сирого" прибутку без комісій
+                            # Перевіряємо, що ціни не None
+                            if buy_price is not None and sell_price is not None and buy_price > 0:
+                                # Обчислюємо потенційний прибуток
                                 profit_percent = (sell_price - buy_price) / buy_price * 100
                                 
                                 # Отримуємо відповідні комісії для бірж (окремо для купівлі та продажу)
