@@ -57,18 +57,27 @@ class ArbitrageFinder:
     
     for name, exchange in self.exchanges.items():
         # Визначаємо пари для конкретної біржі
-        exchange_symbols = symbols
+        exchange_name = name.lower()
+        exchange_symbols = []
         
-        # Якщо є специфічні пари для цієї біржі, використовуємо їх
-        if name.lower() in config.EXCHANGE_SPECIFIC_PAIRS:
-            # Якщо symbols не вказано, використовуємо всі доступні для біржі
-            if symbols is None:
-                exchange_symbols = config.EXCHANGE_SPECIFIC_PAIRS[name.lower()]
+        # Якщо symbols не вказано, використовуємо всі доступні для біржі
+        if symbols is None:
+            if exchange_name in config.EXCHANGE_SPECIFIC_PAIRS:
+                exchange_symbols = config.EXCHANGE_SPECIFIC_PAIRS[exchange_name]
             else:
-                # Інакше - перетин вказаних пар і підтримуваних біржею
-                exchange_symbols = [s for s in symbols if s in config.EXCHANGE_SPECIFIC_PAIRS[name.lower()]]
+                exchange_symbols = config.ALL_PAIRS
+        else:
+            # Використовуємо тільки ті пари, які підтримуються біржею
+            if exchange_name in config.EXCHANGE_SPECIFIC_PAIRS:
+                exchange_symbols = [s for s in symbols if s in config.EXCHANGE_SPECIFIC_PAIRS[exchange_name]]
+            else:
+                exchange_symbols = symbols
                 
-        tasks.append(self._get_exchange_tickers(name, exchange, exchange_symbols))
+        if exchange_symbols:
+            tasks.append(self._get_exchange_tickers(name, exchange, exchange_symbols))
+        else:
+            logger.warning(f"Не знайдено підтримуваних пар для біржі {name}")
+            tasks.append(asyncio.sleep(0))  # Пуста задача
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
@@ -77,8 +86,10 @@ class ArbitrageFinder:
         if isinstance(results[i], Exception):
             logger.error(f"Помилка при отриманні тікерів для {name}: {results[i]}")
             all_tickers[name] = {}
-        else:
+        elif isinstance(results[i], dict):  # Перевіряємо, що результат - словник
             all_tickers[name] = results[i]
+        else:
+            all_tickers[name] = {}
     
     return all_tickers
     
