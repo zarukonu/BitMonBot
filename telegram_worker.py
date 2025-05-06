@@ -318,7 +318,7 @@ class TelegramWorker:
                 admin_message = (
                     f"⚠️ <b>Новий запит на доступ</b>\n\n"
                     f"Користувач <b>{first_name} {last_name}</b>"
-                    f"{' (@' + username + ')' if username else ''} "
+                    f"{(' (@' + username + ')') if username else ''} "
                     f"[ID: {chat_id}] надіслав повідомлення:\n\n"
                     f"<i>{text}</i>\n\n"
                     f"Використовуйте команду <code>/approve {chat_id}</code> для схвалення "
@@ -433,7 +433,7 @@ class TelegramWorker:
             admin_message = (
                 f"⚠️ <b>Новий користувач</b>\n\n"
                 f"Користувач <b>{first_name}</b>"
-                f"{f' (@{user_data.get(\"username\", \"\")})' if user_data.get('username') else ''} "
+                f"{(' (@' + user_data.get('username', '')) if user_data.get('username') else ''} "
                 f"[ID: {chat_id}] запустив бота.\n\n"
                 f"Використовуйте команду <code>/approve {chat_id}</code> для схвалення "
                 f"або <code>/block {chat_id}</code> для блокування користувача."
