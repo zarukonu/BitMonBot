@@ -1,4 +1,4 @@
-# arbitrage/finder.py - виправлена версія
+# arbitrage/finder.py
 import logging
 from typing import Dict, List, Tuple, Optional
 import asyncio
@@ -50,48 +50,48 @@ class ArbitrageFinder:
                 logger.error(f"Помилка при закритті з'єднання з біржею {name}: {e}")
     
     async def get_all_tickers(self, symbols: List[str] = None) -> Dict[str, Dict[str, Dict]]:
-    """
-    Отримання тікерів для всіх бірж з урахуванням підтримуваних пар
-    """
-    tasks = []
-    
-    for name, exchange in self.exchanges.items():
-        # Визначаємо пари для конкретної біржі
-        exchange_name = name.lower()
-        exchange_symbols = []
+        """
+        Отримання тікерів для всіх бірж з урахуванням підтримуваних пар
+        """
+        tasks = []
         
-        # Якщо symbols не вказано, використовуємо всі доступні для біржі
-        if symbols is None:
-            if exchange_name in config.EXCHANGE_SPECIFIC_PAIRS:
-                exchange_symbols = config.EXCHANGE_SPECIFIC_PAIRS[exchange_name]
+        for name, exchange in self.exchanges.items():
+            # Визначаємо пари для конкретної біржі
+            exchange_name = name.lower()
+            exchange_symbols = []
+            
+            # Якщо symbols не вказано, використовуємо всі доступні для біржі
+            if symbols is None:
+                if exchange_name in config.EXCHANGE_SPECIFIC_PAIRS:
+                    exchange_symbols = config.EXCHANGE_SPECIFIC_PAIRS[exchange_name]
+                else:
+                    exchange_symbols = config.ALL_PAIRS
             else:
-                exchange_symbols = config.ALL_PAIRS
-        else:
-            # Використовуємо тільки ті пари, які підтримуються біржею
-            if exchange_name in config.EXCHANGE_SPECIFIC_PAIRS:
-                exchange_symbols = [s for s in symbols if s in config.EXCHANGE_SPECIFIC_PAIRS[exchange_name]]
+                # Використовуємо тільки ті пари, які підтримуються біржею
+                if exchange_name in config.EXCHANGE_SPECIFIC_PAIRS:
+                    exchange_symbols = [s for s in symbols if s in config.EXCHANGE_SPECIFIC_PAIRS[exchange_name]]
+                else:
+                    exchange_symbols = symbols
+                    
+            if exchange_symbols:
+                tasks.append(self._get_exchange_tickers(name, exchange, exchange_symbols))
             else:
-                exchange_symbols = symbols
-                
-        if exchange_symbols:
-            tasks.append(self._get_exchange_tickers(name, exchange, exchange_symbols))
-        else:
-            logger.warning(f"Не знайдено підтримуваних пар для біржі {name}")
-            tasks.append(asyncio.sleep(0))  # Пуста задача
-    
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    all_tickers = {}
-    for i, name in enumerate(self.exchanges.keys()):
-        if isinstance(results[i], Exception):
-            logger.error(f"Помилка при отриманні тікерів для {name}: {results[i]}")
-            all_tickers[name] = {}
-        elif isinstance(results[i], dict):  # Перевіряємо, що результат - словник
-            all_tickers[name] = results[i]
-        else:
-            all_tickers[name] = {}
-    
-    return all_tickers
+                logger.warning(f"Не знайдено підтримуваних пар для біржі {name}")
+                tasks.append(asyncio.sleep(0))  # Пуста задача
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        all_tickers = {}
+        for i, name in enumerate(self.exchanges.keys()):
+            if isinstance(results[i], Exception):
+                logger.error(f"Помилка при отриманні тікерів для {name}: {results[i]}")
+                all_tickers[name] = {}
+            elif isinstance(results[i], dict):  # Перевіряємо, що результат - словник
+                all_tickers[name] = results[i]
+            else:
+                all_tickers[name] = {}
+        
+        return all_tickers
     
     async def _get_exchange_tickers(self, exchange_name: str, exchange: BaseExchange, symbols: List[str]) -> Dict[str, Dict]:
         """
