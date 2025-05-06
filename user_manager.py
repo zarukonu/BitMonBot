@@ -10,7 +10,7 @@ users_logger = logging.getLogger('users')
 
 class UserManager:
     """
-    Клас для керування користувачами та їх підписками
+    Клас для керування користувачами та їх доступом
     """
     def __init__(self, users_file: str = config.USERS_FILE):
         self.users_file = users_file
@@ -50,34 +50,25 @@ class UserManager:
         try:
             is_new = user_id not in self.users
             
-            # Визначаємо тип підписки (адмін чи звичайний)
-            user_type = "admin" if user_id in config.ADMIN_USER_IDS else "free"
+            # Визначаємо тип користувача (адмін чи звичайний)
+            is_admin = user_id in config.ADMIN_USER_IDS
             
             if is_new:
-                # Доступні пари для цього типу підписки
-                available_pairs = config.USER_SUBSCRIPTION_TYPES[user_type]["pairs_list"]
-                max_pairs = config.USER_SUBSCRIPTION_TYPES[user_type]["max_pairs"]
-                
-                # Якщо max_pairs = -1, то без обмежень
-                if max_pairs != -1 and max_pairs < len(available_pairs):
-                    selected_pairs = available_pairs[:max_pairs]
-                else:
-                    selected_pairs = available_pairs[:]
-                
                 # Створюємо нового користувача
                 self.users[user_id] = {
                     "username": username,
                     "first_name": first_name,
                     "last_name": last_name,
-                    "subscription_type": user_type,
+                    "is_admin": is_admin,
+                    "is_approved": is_admin,  # Адміни автоматично схвалені
                     "active": True,
                     "created_at": datetime.datetime.now().isoformat(),
                     "last_activity": datetime.datetime.now().isoformat(),
-                    "pairs": selected_pairs,
+                    "pairs": config.ALL_PAIRS[:],
                     "min_profit": config.DEFAULT_MIN_PROFIT,
                     "notifications_count": 0
                 }
-                users_logger.info(f"Додано нового користувача: {user_id} (тип: {user_type})")
+                users_logger.info(f"Додано нового користувача: {user_id} (admin: {is_admin})")
             else:
                 # Оновлюємо існуючого користувача
                 self.users[user_id]["username"] = username
@@ -85,9 +76,10 @@ class UserManager:
                 self.users[user_id]["last_name"] = last_name
                 self.users[user_id]["last_activity"] = datetime.datetime.now().isoformat()
                 
-                # Якщо користувач став адміном, оновлюємо його тип
-                if user_type == "admin" and self.users[user_id]["subscription_type"] != "admin":
-                    self.users[user_id]["subscription_type"] = "admin"
+                # Якщо користувач став адміном, оновлюємо його статус
+                if is_admin and not self.users[user_id].get("is_admin", False):
+                    self.users[user_id]["is_admin"] = True
+                    self.users[user_id]["is_approved"] = True
                     users_logger.info(f"Користувача {user_id} підвищено до адміністратора")
                 
                 users_logger.info(f"Оновлено дані користувача: {user_id}")
@@ -129,89 +121,42 @@ class UserManager:
         users_logger.info(f"Користувача {user_id} {status}")
         return True
         
+    def approve_user(self, user_id: str) -> bool:
+        """
+        Схвалює користувача
+        """
+        if user_id not in self.users:
+            return False
+            
+        self.users[user_id]["is_approved"] = True
+        self.update_user_activity(user_id)
+        self.save_users()
+        
+        users_logger.info(f"Користувача {user_id} схвалено")
+        return True
+        
+    def block_user(self, user_id: str) -> bool:
+        """
+        Блокує користувача
+        """
+        if user_id not in self.users:
+            return False
+            
+        self.users[user_id]["is_approved"] = False
+        self.update_user_activity(user_id)
+        self.save_users()
+        
+        users_logger.info(f"Користувача {user_id} заблоковано")
+        return True
+        
     def update_user_pairs(self, user_id: str, pairs: List[str]) -> bool:
         """
         Оновлює список пар для користувача
         """
         if user_id not in self.users:
             return False
-            
-        # Отримуємо тип підписки користувача
-        subscription_type = self.users[user_id]["subscription_type"]
         
-        # Отримуємо максимальну кількість пар та доступні пари для цієї підписки
-        max_pairs = config.USER_SUBSCRIPTION_TYPES[subscription_type]["max_pairs"]
-        available_pairs = config.USER_SUBSCRIPTION_TYPES[subscription_type]["pairs_list"]
+        # Перевіряємо, що всі пари підтримуються
+        valid_pairs = [pair for pair in pairs if pair in config.ALL_PAIRS]
         
-        # Для безлімітних підписок (max_pairs = -1) обмеження немає
-        if max_pairs != -1 and len(pairs) > max_pairs:
-            users_logger.warning(
-                f"Користувач {user_id} спробував встановити {len(pairs)} пар, "
-                f"але його ліміт {max_pairs}. Список обрізано."
-            )
-            pairs = pairs[:max_pairs]
-            
-        # Перевіряємо, що всі пари підтримуються і доступні для цього рівня підписки
-        valid_pairs = [pair for pair in pairs if pair in available_pairs]
-        
-        if len(valid_pairs) != len(pairs):
-            users_logger.warning(
-                f"Користувач {user_id} спробував додати непідтримувані або недоступні пари. "
-                f"Додано лише підтримувані та доступні: {valid_pairs}"
-            )
-            
-        self.users[user_id]["pairs"] = valid_pairs
-        self.update_user_activity(user_id)
-        self.save_users()
-        
-        users_logger.info(f"Оновлено пари для користувача {user_id}: {valid_pairs}")
-        return True
-        
-    def set_user_min_profit(self, user_id: str, min_profit: float) -> bool:
-        """
-        Встановлює мінімальний поріг прибутку для користувача
-        """
-        if user_id not in self.users:
-            return False
-            
-        # Обмежуємо значення в розумних межах
-        if min_profit < 0.1:
-            min_profit = 0.1
-        elif min_profit > 10.0:
-            min_profit = 10.0
-            
-        self.users[user_id]["min_profit"] = min_profit
-        self.update_user_activity(user_id)
-        self.save_users()
-        
-        users_logger.info(f"Встановлено мінімальний поріг прибутку для користувача {user_id}: {min_profit}%")
-        return True
-        
-    def increment_notifications(self, user_id: str) -> int:
-        """
-        Збільшує лічильник відправлених повідомлень користувачу
-        """
-        if user_id not in self.users:
-            return 0
-            
-        self.users[user_id]["notifications_count"] = self.users[user_id].get("notifications_count", 0) + 1
-        self.save_users()
-        
-        return self.users[user_id]["notifications_count"]
-        
-    def get_active_users(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Повертає словник активних користувачів
-        """
-        return {user_id: user_data for user_id, user_data in self.users.items() 
-                if user_data.get("active", False)}
-                
-    def get_user_notification_delay(self, user_id: str) -> int:
-        """
-        Повертає затримку для відправки повідомлень користувачу
-        """
-        if user_id not in self.users:
-            return 0
-            
-        subscription_type = self.users[user_id]["subscription_type"]
-        return config.USER_SUBSCRIPTION_TYPES[subscription_type]["notification_delay"]
+        if len(valid_pairs) != len(pairs)
