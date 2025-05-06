@@ -2,19 +2,25 @@
 import logging
 import os
 from logging.handlers import RotatingFileHandler
-import config
 
 # Створюємо директорію для логів, якщо вона не існує
-os.makedirs(os.path.dirname(config.MAIN_LOG_FILE), exist_ok=True)
+logs_dir = 'logs'
+os.makedirs(logs_dir, exist_ok=True)
+
+# Шляхи до лог-файлів
+MAIN_LOG_FILE = os.path.join(logs_dir, 'main.log')
+TELEGRAM_LOG_FILE = os.path.join(logs_dir, 'telegram.log')
+ARBITRAGE_LOG_FILE = os.path.join(logs_dir, 'arbitrage.log')
+USERS_LOG_FILE = os.path.join(logs_dir, 'users.log')
 
 # Загальний формат логування
 log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # Налаштування основного логера
 main_logger = logging.getLogger('main')
-main_logger.setLevel(getattr(logging, config.LOG_LEVEL))
+main_logger.setLevel(logging.INFO)
 main_handler = RotatingFileHandler(
-    config.MAIN_LOG_FILE, 
+    MAIN_LOG_FILE, 
     maxBytes=10*1024*1024,  # 10MB
     backupCount=5
 )
@@ -23,9 +29,9 @@ main_logger.addHandler(main_handler)
 
 # Налаштування логера для Telegram
 telegram_logger = logging.getLogger('telegram')
-telegram_logger.setLevel(getattr(logging, config.LOG_LEVEL))
+telegram_logger.setLevel(logging.INFO)
 telegram_handler = RotatingFileHandler(
-    config.TELEGRAM_LOG_FILE, 
+    TELEGRAM_LOG_FILE, 
     maxBytes=10*1024*1024,  # 10MB
     backupCount=5
 )
@@ -34,9 +40,9 @@ telegram_logger.addHandler(telegram_handler)
 
 # Налаштування логера для арбітражу
 arbitrage_logger = logging.getLogger('arbitrage')
-arbitrage_logger.setLevel(getattr(logging, config.LOG_LEVEL))
+arbitrage_logger.setLevel(logging.INFO)
 arbitrage_handler = RotatingFileHandler(
-    config.ARBITRAGE_LOG_FILE, 
+    ARBITRAGE_LOG_FILE, 
     maxBytes=10*1024*1024,  # 10MB
     backupCount=5
 )
@@ -45,9 +51,9 @@ arbitrage_logger.addHandler(arbitrage_handler)
 
 # Налаштування логера для користувачів
 users_logger = logging.getLogger('users')
-users_logger.setLevel(getattr(logging, config.LOG_LEVEL))
+users_logger.setLevel(logging.INFO)
 users_handler = RotatingFileHandler(
-    config.USERS_LOG_FILE, 
+    USERS_LOG_FILE, 
     maxBytes=10*1024*1024,  # 10MB
     backupCount=5
 )
