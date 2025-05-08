@@ -12,6 +12,7 @@ MAIN_LOG_FILE = os.path.join(logs_dir, 'main.log')
 TELEGRAM_LOG_FILE = os.path.join(logs_dir, 'telegram.log')
 ARBITRAGE_LOG_FILE = os.path.join(logs_dir, 'arbitrage.log')
 USERS_LOG_FILE = os.path.join(logs_dir, 'users.log')
+TRIANGULAR_LOG_FILE = os.path.join(logs_dir, 'triangular.log')  # Новий файл логів для трикутного арбітражу
 
 # Загальний формат логування
 log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -60,6 +61,17 @@ users_handler = RotatingFileHandler(
 users_handler.setFormatter(log_format)
 users_logger.addHandler(users_handler)
 
+# Налаштування логера для трикутного арбітражу
+triangular_logger = logging.getLogger('triangular')
+triangular_logger.setLevel(logging.INFO)
+triangular_handler = RotatingFileHandler(
+    TRIANGULAR_LOG_FILE, 
+    maxBytes=10*1024*1024,  # 10MB
+    backupCount=5
+)
+triangular_handler.setFormatter(log_format)
+triangular_logger.addHandler(triangular_handler)
+
 # Додамо також вивід в консоль для всіх логерів
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(log_format)
@@ -68,3 +80,4 @@ main_logger.addHandler(console_handler)
 telegram_logger.addHandler(console_handler)
 arbitrage_logger.addHandler(console_handler)
 users_logger.addHandler(console_handler)
+triangular_logger.addHandler(console_handler)  # Додаємо консольний логер для трикутного арбітражу
