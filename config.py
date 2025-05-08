@@ -25,6 +25,7 @@ USERS_FILE = os.getenv("USERS_FILE", "users.json")
 # Arbitrage settings
 MIN_PROFIT_THRESHOLD = float(os.getenv("MIN_PROFIT_THRESHOLD", "0.5"))  # мінімальний % прибутку
 MIN_NET_PROFIT_THRESHOLD = float(os.getenv("MIN_NET_PROFIT_THRESHOLD", "0.3"))  # мінімальний чистий % прибутку
+TRIANGULAR_MIN_PROFIT_THRESHOLD = float(os.getenv("TRIANGULAR_MIN_PROFIT_THRESHOLD", "0.3"))  # мінімальний % прибутку для трикутного арбітражу
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))  # інтервал перевірки в секундах
 PEAK_CHECK_INTERVAL = int(os.getenv("PEAK_CHECK_INTERVAL", "30"))  # інтервал в пікові години
 
