@@ -9,7 +9,7 @@ from arbitrage.opportunity import ArbitrageOpportunity
 from arbitrage.fee_calculator import FeeCalculator
 import config
 
-logger = logging.getLogger('triangular')
+logger = logging.getLogger('triangular')  # Змінюємо логер на 'triangular'
 
 class TriangularArbitrageFinder:
     """
@@ -17,7 +17,7 @@ class TriangularArbitrageFinder:
     """
     def __init__(self, exchange: BaseExchange, 
                  base_currency: str = "USDT", 
-                 min_profit: float = config.MIN_PROFIT_THRESHOLD):
+                 min_profit: float = config.TRIANGULAR_MIN_PROFIT_THRESHOLD):  # Використовуємо новий параметр
         self.exchange = exchange
         self.exchange_name = exchange.name
         self.base_currency = base_currency
@@ -116,6 +116,9 @@ class TriangularArbitrageFinder:
             # Розраховуємо прибуток
             profit_percent = ((current_amount / initial_amount) - 1) * 100
             
+            # Добавимо логування для всіх перевірених шляхів, навіть якщо вони не прибуткові
+            logger.debug(f"Перевірено шлях {' -> '.join(path)} на {self.exchange_name}: прибуток {profit_percent:.4f}%")
+            
             # Якщо прибуток перевищує мінімальний поріг
             if profit_percent >= self.min_profit:
                 # Розраховуємо комісії
@@ -146,6 +149,11 @@ class TriangularArbitrageFinder:
                               f"Шлях: {' -> '.join(path)}, Прибуток: {net_profit_percent:.2f}% після комісій")
                     
                     return opportunity
+                else:
+                    # Логуємо випадки, коли прибуток є, але комісії його з'їдають
+                    logger.debug(f"Знайдено невигідну можливість на {self.exchange_name}: "
+                               f"Шлях: {' -> '.join(path)}, Прибуток: {profit_percent:.2f}%, "
+                               f"Чистий прибуток: {net_profit_percent:.2f}% (нижче порогу {config.MIN_NET_PROFIT_THRESHOLD}%)")
             
             return None
             
