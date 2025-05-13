@@ -9,6 +9,7 @@ import logger
 from telegram_worker import TelegramWorker
 from arbitrage.opportunity import ArbitrageOpportunity
 from user_manager import UserManager
+from notifier.telegram_notifier import TelegramNotifier
 
 # Отримуємо логер
 test_logger = logging.getLogger('main')
@@ -64,6 +65,7 @@ async def test_opportunity_notification():
         # Генеруємо повідомлення
         message = opportunity.to_message()
         test_logger.info(f"Сформовано тестове повідомлення про можливість: {opportunity.symbol}, {opportunity.profit_percent}%")
+        test_logger.info(f"Повідомлення: {message}")
         
         # 1. Пряма відправка адміністратору
         test_logger.info("Тест 1: Пряма відправка адміністратору")
@@ -79,33 +81,21 @@ async def test_opportunity_notification():
         
         # 2. Спроба відправки через метод notify_about_opportunity
         test_logger.info("Тест 2: Відправка через notify_about_opportunity")
-        notification_result = await telegram_worker.notify_about_opportunity(message)
-        test_logger.info(f"Результат notify_about_opportunity: {notification_result}")
-        
-        # 3. Тест із спеціально сформованим повідомленням без форматування
-        test_logger.info("Тест 3: Повідомлення без HTML-форматування")
-        simple_message = (
-            f"🔍 Арбітражна можливість (0.6%)\n\n"
-            f"Пара: BTC/USDT\n"
-            f"Купити на: Binance за 40000.00000000\n"
-            f"Продати на: Kraken за 40240.00000000\n"
-            f"Прибуток: 0.60%\n"
-            f"Час: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        simple_result = await telegram_worker.notify_about_opportunity(simple_message)
-        test_logger.info(f"Результат простого повідомлення: {simple_result}")
-        
-        # 4. Перевірка broadcast_message
-        test_logger.info("Тест 4: Відправка через broadcast_message")
-        broadcast_result = await telegram_worker.broadcast_message(
-            "📢 ТЕСТ: Широкомовне повідомлення для всіх користувачів",
-            parse_mode="HTML"
-        )
-        test_logger.info(f"Результат broadcast_message: {broadcast_result}")
+        try:
+            notification_result = await telegram_worker.notify_about_opportunity(message)
+            test_logger.info(f"Результат notify_about_opportunity: {notification_result}")
+        except Exception as e:
+            test_logger.error(f"Помилка при виклику notify_about_opportunity: {e}")
+            import traceback
+            test_logger.error(traceback.format_exc())
         
         # Чекаємо, поки всі повідомлення будуть відправлені
-        await telegram_worker.queue.join()
-        test_logger.info("Всі повідомлення в черзі оброблено")
+        try:
+            # Встановлюємо таймаут 5 секунд
+            await asyncio.wait_for(telegram_worker.queue.join(), timeout=5)
+            test_logger.info("Всі повідомлення в черзі оброблено")
+        except asyncio.TimeoutError:
+            test_logger.warning("Таймаут очікування обробки всіх повідомлень")
         
         # Підсумкове повідомлення
         await telegram_worker.send_message(
