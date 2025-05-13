@@ -2,6 +2,8 @@
 import logging
 from typing import Dict, List, Tuple, Optional
 import asyncio
+from datetime import datetime
+import json
 
 from exchange_api.base_exchange import BaseExchange
 from exchange_api.factory import ExchangeFactory
@@ -9,6 +11,7 @@ from arbitrage.opportunity import ArbitrageOpportunity
 import config
 
 logger = logging.getLogger('arbitrage')
+all_opps_logger = logging.getLogger('all_opportunities')
 
 class ArbitrageFinder:
     """
@@ -117,6 +120,7 @@ class ArbitrageFinder:
             symbols = config.PAIRS
             
         opportunities = []
+        all_possible_opportunities = []  # Для збереження всіх можливостей
         
         # Отримуємо тікери для всіх бірж
         all_tickers = await self.get_all_tickers(symbols)
@@ -186,19 +190,36 @@ class ArbitrageFinder:
                                     compare_profit = profit_percent
                                     net_profit_percent = None
                                 
-                                # Логуємо для діагностики - всі комбінації, навіть ті, що не дають прибуток
-                                # Виправляємо форматування рядка для уникнення помилки
+                                # Форматуємо рядок з чистим прибутком
                                 if net_profit_percent is not None:
                                     net_profit_str = f"{net_profit_percent:.4f}"
                                 else:
                                     net_profit_str = "0.0000"
                                 
+                                # Логуємо для діагностики - всі комбінації, навіть ті, що не дають прибуток
                                 logger.debug(
                                     f"{symbol}: {buy_exchange} -> {sell_exchange}: "
                                     f"buy={buy_price:.8f}, sell={sell_price:.8f}, "
                                     f"profit={profit_percent:.4f}%, "
                                     f"net_profit={net_profit_str}%"
                                 )
+                                
+                                # Логуємо всі можливості з позитивним прибутком, навіть якщо не проходять за порогом
+                                if profit_percent > 0:
+                                    # Додаємо в список всіх можливостей
+                                    opportunity_data = {
+                                        "symbol": symbol,
+                                        "buy_exchange": buy_exchange,
+                                        "sell_exchange": sell_exchange,
+                                        "buy_price": buy_price,
+                                        "sell_price": sell_price,
+                                        "profit_percent": profit_percent,
+                                        "buy_fee": buy_fee,
+                                        "sell_fee": sell_fee,
+                                        "net_profit_percent": net_profit_percent if net_profit_percent is not None else 0.0,
+                                        "timestamp": datetime.now().isoformat()
+                                    }
+                                    all_possible_opportunities.append(opportunity_data)
                                 
                                 # Якщо прибуток перевищує мінімальний поріг
                                 if compare_profit >= self.min_profit:
@@ -236,6 +257,46 @@ class ArbitrageFinder:
                                     )
             else:
                 logger.debug(f"Недостатньо бірж для арбітражу для {symbol} (знайдено цін: {len(symbol_prices)})")
+        
+        # Логуємо всі можливості, навіть якщо вони не пройшли за порогом
+        if all_possible_opportunities:
+            # Сортуємо за чистим прибутком
+            all_possible_opportunities.sort(key=lambda x: x['net_profit_percent'], reverse=True)
+            
+            # Логуємо у спеціальний файл
+            opportunity_log = f"===== ЗВІТ ПРО ВСІ МОЖЛИВОСТІ ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')}) =====\n"
+            opportunity_log += f"Всього знайдено {len(all_possible_opportunities)} потенційних можливостей:\n"
+            
+            for i, opp in enumerate(all_possible_opportunities, 1):
+                opportunity_log += (
+                    f"{i}. {opp['symbol']}: {opp['buy_exchange']} → {opp['sell_exchange']}, "
+                    f"Прибуток {opp['profit_percent']:.4f}%, "
+                    f"Чистий прибуток {opp['net_profit_percent']:.4f}%, "
+                    f"Buy: {opp['buy_price']}, Sell: {opp['sell_price']}\n"
+                )
+            
+            all_opps_logger.info(opportunity_log)
+            
+            # Також зберігаємо всі можливості в JSON файл для аналізу
+            opportunities_data = {
+                "timestamp": datetime.now().isoformat(),
+                "total": len(all_possible_opportunities),
+                "opportunities": all_possible_opportunities,
+                "min_profit_threshold": self.min_profit
+            }
+            
+            try:
+                # Створюємо директорію, якщо вона не існує
+                os.makedirs("data", exist_ok=True)
+                
+                # Зберігаємо з ім'ям файлу на основі поточної дати та часу
+                filename = f"data/opportunities_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                with open(filename, "w") as f:
+                    json.dump(opportunities_data, f, indent=2)
+                    
+                logger.info(f"Збережено {len(all_possible_opportunities)} потенційних можливостей у файл {filename}")
+            except Exception as e:
+                logger.error(f"Помилка при збереженні можливостей у JSON: {e}")
         
         logger.info(f"Всього знайдено {len(opportunities)} арбітражних можливостей")
         return opportunities
