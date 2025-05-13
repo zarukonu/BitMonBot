@@ -241,6 +241,8 @@ if __name__ == "__main__":
     try:
         # Створюємо директорію для логів, якщо вона не існує
         os.makedirs(os.path.dirname(config.MAIN_LOG_FILE), exist_ok=True)
+        os.makedirs("logs", exist_ok=True)
+        os.makedirs("data", exist_ok=True)
         
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main())
