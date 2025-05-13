@@ -281,5 +281,24 @@ class TelegramWorker:
                 logger.error(f"Помилка при моніторингу черги: {e}")
                 # Чекаємо трохи перед повторною спробою
                 await asyncio.sleep(5)
-    
-    # ... (решта коду залишається без змін)
+                
+    async def handle_commands(self):
+        """
+        Обробляє команди від користувачів через Telegram API
+        """
+        logger.info("Запущено обробник команд Telegram")
+        
+        # Простий цикл обробки команд
+        while True:
+            try:
+                # У повній реалізації тут був би код для отримання і обробки команд від Telegram
+                # Для цього тестового варіанту, ми просто чекаємо і нічого не робимо
+                await asyncio.sleep(60)  # Перевірка кожну хвилину
+                
+            except asyncio.CancelledError:
+                logger.info("Обробник команд зупинено")
+                break
+            except Exception as e:
+                logger.error(f"Помилка при обробці команд: {e}")
+                # Чекаємо трохи перед повторною спробою
+                await asyncio.sleep(5)
