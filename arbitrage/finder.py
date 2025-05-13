@@ -26,6 +26,7 @@ class ArbitrageFinder:
         self.buy_fee_type = buy_fee_type.lower()  # 'maker' або 'taker'
         self.sell_fee_type = sell_fee_type.lower()  # 'maker' або 'taker'
         self.exchanges: Dict[str, BaseExchange] = {}
+        logger.info(f"Ініціалізовано ArbitrageFinder з min_profit={min_profit}%, include_fees={include_fees}")
         
     async def initialize(self):
         """
@@ -75,6 +76,7 @@ class ArbitrageFinder:
                     
             if exchange_symbols:
                 tasks.append(self._get_exchange_tickers(name, exchange, exchange_symbols))
+                logger.debug(f"Додано задачу отримання тікерів для {name} ({len(exchange_symbols)} пар)")
             else:
                 logger.warning(f"Не знайдено підтримуваних пар для біржі {name}")
                 tasks.append(asyncio.sleep(0))  # Пуста задача
@@ -88,8 +90,10 @@ class ArbitrageFinder:
                 all_tickers[name] = {}
             elif isinstance(results[i], dict):  # Перевіряємо, що результат - словник
                 all_tickers[name] = results[i]
+                logger.debug(f"Отримано {len(results[i])} тікерів для {name}")
             else:
                 all_tickers[name] = {}
+                logger.warning(f"Неочікуваний результат при отриманні тікерів для {name}: {type(results[i])}")
         
         return all_tickers
     
@@ -136,6 +140,7 @@ class ArbitrageFinder:
             
             # Якщо маємо ціни з принаймні двох бірж
             if len(symbol_prices) >= 2:
+                logger.debug(f"Знайдено ціни для {symbol} на {len(symbol_prices)} біржах: {', '.join(symbol_prices.keys())}")
                 # Перевіряємо всі можливі комбінації бірж
                 exchange_names = list(symbol_prices.keys())
                 for i in range(len(exchange_names)):
@@ -181,6 +186,14 @@ class ArbitrageFinder:
                                     compare_profit = profit_percent
                                     net_profit_percent = None
                                 
+                                # Логуємо для діагностики - всі комбінації, навіть ті, що не дають прибуток
+                                logger.debug(
+                                    f"{symbol}: {buy_exchange} -> {sell_exchange}: "
+                                    f"buy={buy_price:.8f}, sell={sell_price:.8f}, "
+                                    f"profit={profit_percent:.4f}%, "
+                                    f"net_profit={net_profit_percent:.4f if net_profit_percent is not None else 0.0}%"
+                                )
+                                
                                 # Якщо прибуток перевищує мінімальний поріг
                                 if compare_profit >= self.min_profit:
                                     opportunity = ArbitrageOpportunity(
@@ -198,30 +211,25 @@ class ArbitrageFinder:
                                     )
                                     opportunities.append(opportunity)
                                     
-                                    # Логуємо зі інформацією про комісії, якщо вони використовуються
-                                    if self.include_fees and net_profit_percent is not None:
-                                        logger.info(
-                                            f"Знайдено арбітражну можливість: {symbol} "
-                                            f"купити на {buy_exchange} за {buy_price:.8f} (комісія {self.buy_fee_type}: {buy_fee}%), "
-                                            f"продати на {sell_exchange} за {sell_price:.8f} (комісія {self.sell_fee_type}: {sell_fee}%). "
-                                            f"Прибуток брутто: {profit_percent:.2f}%, "
-                                            f"нетто (з комісіями): {net_profit_percent:.2f}%"
-                                        )
-                                    else:
-                                        logger.info(
-                                            f"Знайдено арбітражну можливість: {symbol} "
-                                            f"купити на {buy_exchange} за {buy_price:.8f}, "
-                                            f"продати на {sell_exchange} за {sell_price:.8f}. "
-                                            f"Прибуток: {profit_percent:.2f}%"
-                                        )
-                                elif self.include_fees and profit_percent >= self.min_profit and net_profit_percent < self.min_profit:
-                                    # Логуємо випадки, коли є потенційний прибуток, але комісії його "з'їдають"
-                                    logger.debug(
-                                        f"Відхилено через комісії: {symbol} "
-                                        f"купити на {buy_exchange} за {buy_price:.8f} (комісія {self.buy_fee_type}: {buy_fee}%), "
-                                        f"продати на {sell_exchange} за {sell_price:.8f} (комісія {self.sell_fee_type}: {sell_fee}%). "
-                                        f"Прибуток брутто: {profit_percent:.2f}%, "
-                                        f"нетто (з комісіями): {net_profit_percent:.2f}% < {self.min_profit}%"
+                                    # ВИДІЛЕНО ВЕЛИКИМИ ЛІТЕРАМИ для легшого знаходження в логах
+                                    logger.info(
+                                        f"ЗНАЙДЕНО АРБІТРАЖНУ МОЖЛИВІСТЬ: {symbol} "
+                                        f"купити на {buy_exchange} за {buy_price:.8f} (комісія {buy_fee}%), "
+                                        f"продати на {sell_exchange} за {sell_price:.8f} (комісія {sell_fee}%). "
+                                        f"Прибуток: {profit_percent:.2f}%, "
+                                        f"Чистий прибуток: {net_profit_percent:.2f if net_profit_percent is not None else profit_percent:.2f}%"
                                     )
+                                elif profit_percent >= self.min_profit and (net_profit_percent is None or net_profit_percent < self.min_profit):
+                                    # Логуємо випадки, коли є потенційний прибуток, але комісії його "з'їдають"
+                                    logger.info(
+                                        f"ВІДХИЛЕНО ЧЕРЕЗ КОМІСІЇ: {symbol} "
+                                        f"купити на {buy_exchange} за {buy_price:.8f} (комісія {buy_fee}%), "
+                                        f"продати на {sell_exchange} за {sell_price:.8f} (комісія {sell_fee}%). "
+                                        f"Прибуток: {profit_percent:.2f}%, "
+                                        f"Чистий прибуток: {net_profit_percent:.2f if net_profit_percent is not None else profit_percent:.2f}% < {self.min_profit}%"
+                                    )
+            else:
+                logger.debug(f"Недостатньо бірж для арбітражу для {symbol} (знайдено цін: {len(symbol_prices)})")
         
+        logger.info(f"Всього знайдено {len(opportunities)} арбітражних можливостей")
         return opportunities
