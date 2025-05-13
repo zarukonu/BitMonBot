@@ -4,6 +4,7 @@ import logging
 import sys
 from datetime import datetime
 import json
+import os
 
 import config
 from exchange_api.factory import ExchangeFactory
