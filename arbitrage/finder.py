@@ -187,11 +187,17 @@ class ArbitrageFinder:
                                     net_profit_percent = None
                                 
                                 # Логуємо для діагностики - всі комбінації, навіть ті, що не дають прибуток
+                                # Виправляємо форматування рядка для уникнення помилки
+                                if net_profit_percent is not None:
+                                    net_profit_str = f"{net_profit_percent:.4f}"
+                                else:
+                                    net_profit_str = "0.0000"
+                                
                                 logger.debug(
                                     f"{symbol}: {buy_exchange} -> {sell_exchange}: "
                                     f"buy={buy_price:.8f}, sell={sell_price:.8f}, "
                                     f"profit={profit_percent:.4f}%, "
-                                    f"net_profit={net_profit_percent:.4f if net_profit_percent is not None else 0.0}%"
+                                    f"net_profit={net_profit_str}%"
                                 )
                                 
                                 # Якщо прибуток перевищує мінімальний поріг
@@ -217,7 +223,7 @@ class ArbitrageFinder:
                                         f"купити на {buy_exchange} за {buy_price:.8f} (комісія {buy_fee}%), "
                                         f"продати на {sell_exchange} за {sell_price:.8f} (комісія {sell_fee}%). "
                                         f"Прибуток: {profit_percent:.2f}%, "
-                                        f"Чистий прибуток: {net_profit_percent:.2f if net_profit_percent is not None else profit_percent:.2f}%"
+                                        f"Чистий прибуток: {net_profit_str}%"
                                     )
                                 elif profit_percent >= self.min_profit and (net_profit_percent is None or net_profit_percent < self.min_profit):
                                     # Логуємо випадки, коли є потенційний прибуток, але комісії його "з'їдають"
@@ -226,7 +232,7 @@ class ArbitrageFinder:
                                         f"купити на {buy_exchange} за {buy_price:.8f} (комісія {buy_fee}%), "
                                         f"продати на {sell_exchange} за {sell_price:.8f} (комісія {sell_fee}%). "
                                         f"Прибуток: {profit_percent:.2f}%, "
-                                        f"Чистий прибуток: {net_profit_percent:.2f if net_profit_percent is not None else profit_percent:.2f}% < {self.min_profit}%"
+                                        f"Чистий прибуток: {net_profit_str}% < {self.min_profit}%"
                                     )
             else:
                 logger.debug(f"Недостатньо бірж для арбітражу для {symbol} (знайдено цін: {len(symbol_prices)})")
