@@ -118,11 +118,12 @@ EXCHANGE_SPECIFIC_PAIRS = {
 
 # Пари для трикутного арбітражу, які гарантовано мають достатню ліквідність
 TRIANGULAR_PATHS = [
-    ["USDT", "BTC", "ETH", "USDT"],
-    ["USDT", "BTC", "SOL", "USDT"],
-    ["USDT", "ETH", "SOL", "USDT"],
-    ["USDT", "BTC", "XRP", "USDT"],
-    ["USDT", "ETH", "LINK", "USDT"]
+    # Для Binance
+    ["USDT", "ETH", "BTC", "USDT"],  # USDT/ETH, ETH/BTC, BTC/USDT
+    ["USDT", "LTC", "BTC", "USDT"],  # USDT/LTC, LTC/BTC, BTC/USDT
+    ["USDT", "XRP", "BTC", "USDT"],  # USDT/XRP, XRP/BTC, BTC/USDT
+    ["USDT", "ADA", "BTC", "USDT"],  # USDT/ADA, ADA/BTC, BTC/USDT
+    ["USDT", "SOL", "BTC", "USDT"],  # USDT/SOL, SOL/BTC, BTC/USDT
 ]
 
 # Список пар, які будуть використовуватися за замовчуванням
