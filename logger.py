@@ -12,7 +12,8 @@ MAIN_LOG_FILE = os.path.join(logs_dir, 'main.log')
 TELEGRAM_LOG_FILE = os.path.join(logs_dir, 'telegram.log')
 ARBITRAGE_LOG_FILE = os.path.join(logs_dir, 'arbitrage.log')
 USERS_LOG_FILE = os.path.join(logs_dir, 'users.log')
-TRIANGULAR_LOG_FILE = os.path.join(logs_dir, 'triangular.log')  # Новий файл логів для трикутного арбітражу
+TRIANGULAR_LOG_FILE = os.path.join(logs_dir, 'triangular.log')  # Лог для трикутного арбітражу
+ALL_OPPORTUNITIES_LOG_FILE = os.path.join(logs_dir, 'all_opportunities.log')  # Новий лог для всіх можливостей
 
 # Загальний формат логування
 log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -72,6 +73,17 @@ triangular_handler = RotatingFileHandler(
 triangular_handler.setFormatter(log_format)
 triangular_logger.addHandler(triangular_handler)
 
+# Новий логер для всіх арбітражних можливостей
+all_opportunities_logger = logging.getLogger('all_opportunities')
+all_opportunities_logger.setLevel(logging.INFO)
+all_opportunities_handler = RotatingFileHandler(
+    ALL_OPPORTUNITIES_LOG_FILE, 
+    maxBytes=20*1024*1024,  # 20MB
+    backupCount=10
+)
+all_opportunities_handler.setFormatter(log_format)
+all_opportunities_logger.addHandler(all_opportunities_handler)
+
 # Додамо також вивід в консоль для всіх логерів
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(log_format)
@@ -80,4 +92,5 @@ main_logger.addHandler(console_handler)
 telegram_logger.addHandler(console_handler)
 arbitrage_logger.addHandler(console_handler)
 users_logger.addHandler(console_handler)
-triangular_logger.addHandler(console_handler)  # Додаємо консольний логер для трикутного арбітражу
+triangular_logger.addHandler(console_handler)
+# Не додаємо консольний хендлер для all_opportunities, щоб не засмічувати консоль
