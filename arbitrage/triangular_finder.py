@@ -1,6 +1,6 @@
 # arbitrage/triangular_finder.py
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import asyncio
 import time
 
@@ -24,7 +24,25 @@ class TriangularArbitrageFinder:
         self.min_profit = min_profit
         self.fee_calculator = FeeCalculator()
         self.paths = config.TRIANGULAR_PATHS
-        
+        self.market_cache = {}  # Кеш для збереження підтримуваних форматів пар
+
+    async def initialize_market_cache(self):
+        """
+        Ініціалізує кеш підтримуваних ринків для біржі
+        """
+        try:
+            # Отримуємо всі доступні ринки на біржі
+            markets = await self.exchange.exchange.fetch_markets()
+            
+            # Заповнюємо кеш
+            for market in markets:
+                symbol = market['symbol']
+                self.market_cache[symbol] = True
+                
+            logger.info(f"Ініціалізовано кеш ринків для {self.exchange_name}: {len(self.market_cache)} ринків")
+        except Exception as e:
+            logger.error(f"Помилка при ініціалізації кешу ринків для {self.exchange_name}: {e}")
+    
     async def find_opportunities(self) -> List[ArbitrageOpportunity]:
         """
         Пошук трикутних арбітражних можливостей
@@ -33,6 +51,10 @@ class TriangularArbitrageFinder:
             List[ArbitrageOpportunity]: Список знайдених можливостей
         """
         opportunities = []
+        
+        # Ініціалізуємо кеш ринків, якщо ще не зроблено
+        if not self.market_cache:
+            await self.initialize_market_cache()
         
         # Для кожного шляху в конфігурації
         for path in self.paths:
@@ -69,25 +91,24 @@ class TriangularArbitrageFinder:
                 from_currency = path[i]
                 to_currency = path[i + 1]
                 
-                # Формуємо торгову пару в правильному форматі
-                # Перевіряємо, яка валюта є базовою, а яка котирувальною
-                if self._is_base_currency(from_currency, to_currency):
-                    pair = f"{from_currency}/{to_currency}"
-                    direction = "sell"  # Продаємо базову валюту
-                else:
-                    pair = f"{to_currency}/{from_currency}"
-                    direction = "buy"   # Купуємо базову валюту
+                # Спробуємо знайти правильний формат пари
+                pair_info = await self._find_valid_pair_format(from_currency, to_currency)
                 
-                pairs.append((pair, direction))
+                if pair_info is None:
+                    # Якщо формат пари не знайдено, пропускаємо цей шлях
+                    logger.warning(f"Не вдалося отримати тікер для пари {from_currency}/{to_currency} або {to_currency}/{from_currency}. Пропускаємо шлях {path}.")
+                    return None
+                
+                pairs.append(pair_info)
             
             # Отримуємо тікери для всіх пар
             tickers = {}
-            for pair, _ in pairs:
-                ticker = await self.exchange.get_ticker(pair)
+            for pair_format, _ in pairs:
+                ticker = await self.exchange.get_ticker(pair_format)
                 if not ticker:
-                    logger.warning(f"Не вдалося отримати тікер для пари {pair}. Пропускаємо шлях {path}.")
+                    logger.warning(f"Не вдалося отримати тікер для пари {pair_format}. Пропускаємо шлях {path}.")
                     return None
-                tickers[pair] = ticker
+                tickers[pair_format] = ticker
             
             # Розраховуємо прибуток для шляху
             initial_amount = 100  # Припускаємо, що починаємо зі 100 одиниць першої валюти
@@ -95,11 +116,11 @@ class TriangularArbitrageFinder:
             rates = []
             
             # Проходимо по кожній парі в шляху
-            for (pair, direction) in pairs:
-                ticker = tickers[pair]
+            for (pair_format, direction) in pairs:
+                ticker = tickers[pair_format]
                 
                 if 'bid' not in ticker or 'ask' not in ticker:
-                    logger.warning(f"Тікер для пари {pair} не містить необхідних даних. Пропускаємо шлях {path}.")
+                    logger.warning(f"Тікер для пари {pair_format} не містить необхідних даних. Пропускаємо шлях {path}.")
                     return None
                 
                 if direction == "buy":
@@ -116,7 +137,7 @@ class TriangularArbitrageFinder:
             # Розраховуємо прибуток
             profit_percent = ((current_amount / initial_amount) - 1) * 100
             
-            # Добавимо логування для всіх перевірених шляхів, навіть якщо вони не прибуткові
+            # Логуємо для діагностики всі перевірені шляхи
             logger.debug(f"Перевірено шлях {' -> '.join(path)} на {self.exchange_name}: прибуток {profit_percent:.4f}%")
             
             # Якщо прибуток перевищує мінімальний поріг
@@ -160,25 +181,47 @@ class TriangularArbitrageFinder:
         except Exception as e:
             logger.error(f"Помилка при перевірці шляху {path}: {e}")
             return None
-    
-    def _is_base_currency(self, currency1: str, currency2: str) -> bool:
+            
+    async def _find_valid_pair_format(self, currency1: str, currency2: str) -> Optional[Tuple[str, str]]:
         """
-        Визначає, яка з двох валют є базовою в торговій парі
-        
-        В реальному проекті це було б більш складно і залежало б від правил біржі.
-        Для простоти припускаємо, що базовою є перша валюта в цьому порядку:
-        BTC, ETH, BNB, USDT, інші.
+        Шукає валідний формат пари для двох валют
         
         Args:
             currency1 (str): Перша валюта
             currency2 (str): Друга валюта
             
         Returns:
-            bool: True, якщо currency1 є базовою валютою, False інакше
+            Optional[Tuple[str, str]]: (формат_пари, напрямок) або None, якщо формат не знайдено
+                формат_пари: рядок у форматі 'XXX/YYY'
+                напрямок: 'buy' або 'sell'
         """
-        currency_priority = {"BTC": 1, "ETH": 2, "BNB": 3, "USDT": 4}
+        # Спробуємо два можливих формати пари
+        format1 = f"{currency1}/{currency2}"
+        format2 = f"{currency2}/{currency1}"
         
-        priority1 = currency_priority.get(currency1, 5)
-        priority2 = currency_priority.get(currency2, 5)
+        # Якщо кеш ініціалізовано, перевіряємо чи є такі формати в кеші
+        if self.market_cache:
+            if format1 in self.market_cache:
+                return (format1, 'sell')  # Ми продаємо currency1 за currency2
+            elif format2 in self.market_cache:
+                return (format2, 'buy')   # Ми купуємо currency2 за currency1
         
-        return priority1 < priority2
+        # Якщо кеш не допоміг, спробуємо безпосередньо отримати тікер
+        try:
+            ticker = await self.exchange.get_ticker(format1)
+            if ticker:
+                return (format1, 'sell')
+        except Exception:
+            # Не вдалося отримати тікер для першого формату, спробуємо другий
+            pass
+            
+        try:
+            ticker = await self.exchange.get_ticker(format2)
+            if ticker:
+                return (format2, 'buy')
+        except Exception:
+            # Не вдалося отримати тікер для другого формату
+            pass
+            
+        # Якщо жоден формат не працює, повертаємо None
+        return None
