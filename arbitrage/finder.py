@@ -4,6 +4,7 @@ from typing import Dict, List, Tuple, Optional
 import asyncio
 from datetime import datetime
 import json
+import os
 
 from exchange_api.base_exchange import BaseExchange
 from exchange_api.factory import ExchangeFactory
@@ -122,9 +123,35 @@ class ArbitrageFinder:
         opportunities = []
         all_possible_opportunities = []  # Для збереження всіх можливостей
         
+        # Логуємо, які пари перевіряються
+        logger.info(f"Починаємо пошук арбітражних можливостей для {len(symbols)} пар: {', '.join(symbols)}")
+        
         # Отримуємо тікери для всіх бірж
         all_tickers = await self.get_all_tickers(symbols)
         
+        # Перевіряємо, які пари доступні на яких біржах
+        exchange_coverage = {}
+        for exchange_name, tickers in all_tickers.items():
+            exchange_pairs = [symbol for symbol in symbols if symbol in tickers]
+            exchange_coverage[exchange_name] = exchange_pairs
+            
+            logger.info(f"Біржа {exchange_name}: Знайдено тікери для {len(exchange_pairs)} з {len(symbols)} пар")
+            missing_pairs = set(symbols) - set(exchange_pairs)
+            if missing_pairs:
+                logger.info(f"Біржа {exchange_name}: Відсутні тікери для пар: {', '.join(missing_pairs)}")
+        
+        # Знаходимо пари, для яких є тікери на хоча б одній біржі
+        all_pairs_with_prices = set()
+        for exchange_name, tickers in all_tickers.items():
+            for symbol in tickers:
+                if symbol in symbols:
+                    all_pairs_with_prices.add(symbol)
+        
+        logger.info(f"Знайдено тікери на хоча б одній біржі для {len(all_pairs_with_prices)} з {len(symbols)} пар")
+        missing_pairs = set(symbols) - all_pairs_with_prices
+        if missing_pairs:
+            logger.info(f"Не знайдено тікерів для пар: {', '.join(missing_pairs)}")
+            
         # Для кожної валютної пари перевіряємо можливості арбітражу між біржами
         for symbol in symbols:
             # Збираємо ціни з усіх бірж для поточної пари
