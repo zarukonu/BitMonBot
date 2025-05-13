@@ -11,8 +11,8 @@ import os
 import config
 import logger
 from arbitrage.finder import ArbitrageFinder
-from arbitrage.triangular_finder import TriangularArbitrageFinder  # Імпортуємо клас трикутного арбітражу
-from exchange_api.factory import ExchangeFactory  # Необхідно для створення об'єктів бірж
+from arbitrage.triangular_finder import TriangularArbitrageFinder
+from exchange_api.factory import ExchangeFactory
 from telegram_worker import TelegramWorker
 
 # Отримуємо логер
@@ -89,31 +89,57 @@ async def check_arbitrage_opportunities():
         # Основний цикл роботи
         while running:
             try:
-                all_opportunities = []
-                
-                # 1. Шукаємо крос-біржові арбітражні можливості
+                # Шукаємо арбітражні можливості
+                main_logger.info(f"Пошук арбітражних можливостей для {len(config.PAIRS)} пар...")
                 cross_opportunities = await arbitrage_finder.find_opportunities()
                 if cross_opportunities:
-                    all_opportunities.extend(cross_opportunities)
                     main_logger.info(f"Знайдено {len(cross_opportunities)} крос-біржових арбітражних можливостей")
+                else:
+                    main_logger.info("Не знайдено жодної крос-біржової арбітражної можливості")
                 
-                # 2. Шукаємо трикутні арбітражні можливості на кожній біржі
+                # Логуємо пошук трикутних можливостей
+                main_logger.info("Пошук трикутних арбітражних можливостей...")
+                triangular_opportunities_count = 0
+                all_opportunities = cross_opportunities.copy() if cross_opportunities else []
+                
+                # Шукаємо трикутні арбітражні можливості на кожній біржі
                 for exchange_name, triangular_finder, exchange in triangular_finders:
                     try:
+                        main_logger.info(f"Шукаємо трикутні можливості на {exchange_name}...")
                         triangular_opportunities = await triangular_finder.find_opportunities()
                         if triangular_opportunities:
                             all_opportunities.extend(triangular_opportunities)
-                            main_logger.info(f"Знайдено {len(triangular_opportunities)} трикутних арбітражних можливостей на {exchange_name}")
+                            triangular_opportunities_count += len(triangular_opportunities)
+                            main_logger.info(f"Знайдено {len(triangular_opportunities)} трикутних можливостей на {exchange_name}")
+                        else:
+                            main_logger.info(f"Не знайдено трикутних можливостей на {exchange_name}")
                     except Exception as e:
                         main_logger.error(f"Помилка при пошуку трикутних можливостей на {exchange_name}: {e}")
                         main_logger.error(traceback.format_exc())
                 
-                # Якщо є можливості, відправляємо повідомлення всім активним схваленим користувачам
-                for opp in all_opportunities:
-                    message = opp.to_message()
+                # Якщо є можливості, відправляємо повідомлення
+                if all_opportunities:
+                    main_logger.info(f"Підготовка до відправки повідомлень про {len(all_opportunities)} можливостей...")
                     
-                    # Надсилаємо повідомлення користувачам
-                    await telegram_worker.notify_about_opportunity(message)
+                    for index, opp in enumerate(all_opportunities):
+                        try:
+                            main_logger.info(f"Обробка можливості #{index+1}: {opp.symbol}, {opp.profit_percent:.2f}%")
+                            message = opp.to_message()
+                            main_logger.debug(f"Сформовано повідомлення для {opp.symbol}")
+                            
+                            # Надсилаємо повідомлення користувачам
+                            delivery_success = await telegram_worker.notify_about_opportunity(message)
+                            
+                            if delivery_success:
+                                main_logger.info(f"Повідомлення про можливість {opp.symbol} успішно надіслано")
+                            else:
+                                main_logger.warning(f"Не вдалося надіслати повідомлення про можливість {opp.symbol}")
+                                
+                        except Exception as e:
+                            main_logger.error(f"Помилка при обробці можливості {opp.symbol}: {e}")
+                            main_logger.error(traceback.format_exc())
+                else:
+                    main_logger.info("Не знайдено жодної арбітражної можливості")
                 
                 # Зберігаємо статус у JSON-файл
                 status = {
@@ -148,60 +174,6 @@ async def check_arbitrage_opportunities():
                 main_logger.error(traceback.format_exc())
                 # Чекаємо трохи перед повторною спробою
                 await asyncio.sleep(10)
-    # У функції check_arbitrage_opportunities() в файлі main.py
-
-# Покращимо логування в основному циклі роботи:
-# Шукаємо арбітражні можливості
-main_logger.info(f"Пошук арбітражних можливостей для {len(config.PAIRS)} пар...")
-cross_opportunities = await arbitrage_finder.find_opportunities()
-if cross_opportunities:
-    main_logger.info(f"Знайдено {len(cross_opportunities)} крос-біржових арбітражних можливостей")
-else:
-    main_logger.info("Не знайдено жодної крос-біржової арбітражної можливості")
-
-# Логуємо пошук трикутних можливостей
-main_logger.info("Пошук трикутних арбітражних можливостей...")
-triangular_opportunities_count = 0
-all_opportunities = cross_opportunities.copy() if cross_opportunities else []
-
-# Шукаємо трикутні арбітражні можливості на кожній біржі
-for exchange_name, triangular_finder, exchange in triangular_finders:
-    try:
-        main_logger.info(f"Шукаємо трикутні можливості на {exchange_name}...")
-        triangular_opportunities = await triangular_finder.find_opportunities()
-        if triangular_opportunities:
-            all_opportunities.extend(triangular_opportunities)
-            triangular_opportunities_count += len(triangular_opportunities)
-            main_logger.info(f"Знайдено {len(triangular_opportunities)} трикутних можливостей на {exchange_name}")
-        else:
-            main_logger.info(f"Не знайдено трикутних можливостей на {exchange_name}")
-    except Exception as e:
-        main_logger.error(f"Помилка при пошуку трикутних можливостей на {exchange_name}: {e}")
-        main_logger.error(traceback.format_exc())
-
-# Якщо є можливості, відправляємо повідомлення
-if all_opportunities:
-    main_logger.info(f"Підготовка до відправки повідомлень про {len(all_opportunities)} можливостей...")
-    
-    for index, opp in enumerate(all_opportunities):
-        try:
-            main_logger.info(f"Обробка можливості #{index+1}: {opp.symbol}, {opp.profit_percent:.2f}%")
-            message = opp.to_message()
-            main_logger.debug(f"Сформовано повідомлення для {opp.symbol}")
-            
-            # Надсилаємо повідомлення користувачам
-            delivery_success = await telegram_worker.notify_about_opportunity(message)
-            
-            if delivery_success:
-                main_logger.info(f"Повідомлення про можливість {opp.symbol} успішно надіслано")
-            else:
-                main_logger.warning(f"Не вдалося надіслати повідомлення про можливість {opp.symbol}")
-                
-        except Exception as e:
-            main_logger.error(f"Помилка при обробці можливості {opp.symbol}: {e}")
-            main_logger.error(traceback.format_exc())
-else:
-    main_logger.info("Не знайдено жодної арбітражної можливості")
                 
     except Exception as e:
         main_logger.error(f"Критична помилка при запуску: {e}")
